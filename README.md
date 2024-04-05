@@ -5,8 +5,8 @@ In our experiments, we used SD and GBA datasets which were generated from CA dat
 ### Generating the SD and GBA sub-datasets from CA dataset
 First of all, you should go through a jupyter notebook `process_ca_his.ipynb` in the folder `data/ca` to process and generate a cleaned version of the flow data. Then, please go through all the cells in the provided jupyter notebooks `generate_sd_dataset.ipynb` in the folder `data/sd` and `generate_gla_dataset.ipynb` in the folder `data/gla` respectively. Finally use the commands below to generate traffic flow data for our experiments. 
 ```
-python generate_data_for_training.py --dataset sd --years 2019_2020_2021
-python generate_data_for_training.py --dataset gba --years 2019_2020_2021
+python data/generate_data_for_training.py --dataset sd_gba --years 2019_2020_2021
+python data/generate_data_for_training.py --dataset gba --years 2019_2020_2021
 ```
 ## 2. Data Processing
 
