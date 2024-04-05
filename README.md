@@ -1,7 +1,7 @@
 # KDD126: STONE: A Spatio-temporal OOD Learning Framework Kills Both Spatial and Temporal Shifts
 
 ## 1. Data Preparation
-In this section, we will outline the procedure for preparing the CA dataset, followed by an explanation of how the GLA, GBA, and SD datasets can be derived from CA. Please follow these instructions step by step.
+In this section, we will outline the procedure for preparing the training the CA dataset, followed by [LargeST](https://github.com/liuxu77/LargeST/blob/main). 
 
 ### 1.1 Download the CA Dataset
 We host the CA dataset on Kaggle: https://www.kaggle.com/datasets/liuxu77/largest. There are a total of 7 files in this link. Among them, 5 files in .h5 format contain the traffic flow raw data from 2017 to 2021, 1 file in .csv format provides the metadata for all sensors, and 1 file in .npy format represents the adjacency matrix constructed based on road network distances.
