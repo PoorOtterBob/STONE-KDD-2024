@@ -1,7 +1,7 @@
 # Submission 126: STONE: A Spatio-temporal OOD Learning Framework Kills Both Spatial and Temporal Shifts
 This is the official repository of our KDD 2024 submission 126 paper. This paper represents the first comprehensive investigation into the traffic prediction considering both
 temporal and spatial shifts. We propose a novel causal graph learning framework called STONE. STONE effectively models spatial heterogeneity and generates temporal and spatial semantic graphs. Additionally, we introduce a graph perturbation mechanism to enhance the model’s environmental modeling capability for better generalization. We implement extensive experiments on both datasets with spatio-temporal shifts and datasets only with temporal shift, and results demonstrate that STONE achieves competitive performance in terms of both generalization and scalability. 
-<img src='img/Spatial Fréchet Embedding Layer.png' width='780px'>
+<img src='img/Spatial Fréchet Embedding Layer.png' width='480px'>
 ## 1. Introduction about the datasets
 In our experiments, we used SD and GBA datasets which were generated from CA dataset, followed by [LargeST](https://github.com/liuxu77/LargeST/blob/main). For example, you can download CA dataset from the provided [link](https://www.kaggle.com/datasets/liuxu77/largest) and please place the downloaded archive.zip file in the `data/ca` folder and unzip the file. 
 ### Generating the SD and GBA sub-datasets from CA dataset
