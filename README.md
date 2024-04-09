@@ -3,11 +3,11 @@ This is the official repository of our KDD 2024 submission 126 paper. This paper
 temporal and spatial shifts. We propose a novel spatio-temporal OOD-network framework with Fréchet Embedding called STONE. STONE effectively models spatial heterogeneity and generates temporal and spatial semantic graphs. Additionally, we introduce a graph perturbation mechanism to enhance the model’s environmental modeling capability for better generalization. We implement extensive experiments on both datasets with spatio-temporal shifts and datasets only with temporal shift, and results demonstrate that STONE achieves competitive performance in terms of both generalization and scalability. 
 For rebuttal, we will show the pseudo-code for the Fréchet embedding computation in the STONE model, joint tuning in the training phase and the computation framework of the STONE model, respectively.
 
-<img src='img/Spatial Fréchet Embedding Layer.png' width='240px' alt='The algorithm of Spatial Fréchet Embedding Layer'>
+<img src='img/Spatial Fréchet Embedding Layer.png' width='300px' alt='The algorithm of Spatial Fréchet Embedding Layer'>
 
-<img src='img/optimization flow.png' width='240px' alt='Optimization flow of STONE during training'>
+<img src='img/optimization flow.png' width='300px' alt='Optimization flow of STONE during training'>
 
-<img src='img/STONE.png' width='240px' alt='Framework of STONE'>
+<img src='img/STONE.png' width='300px' alt='Framework of STONE'>
 
 ## 1. Introduction about the datasets
 In our experiments, we used SD and GBA datasets which were generated from CA dataset, followed by [LargeST](https://github.com/liuxu77/LargeST/blob/main). For example, you can download CA dataset from the provided [link](https://www.kaggle.com/datasets/liuxu77/largest) and please place the downloaded archive.zip file in the `data/ca` folder and unzip the file. 
