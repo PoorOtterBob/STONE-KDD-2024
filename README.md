@@ -1,7 +1,8 @@
 # KDD 2024 Submission 126: STONE: A Spatio-temporal OOD Learning Framework Kills Both Spatial and Temporal Shifts
 This is the official repository of our KDD 2024 submission 126 paper. This paper represents the first comprehensive investigation into the traffic prediction considering both
 temporal and spatial shifts. We propose a novel spatio-temporal OOD-network framework with Fréchet Embedding called STONE. STONE effectively models spatial heterogeneity and generates temporal and spatial semantic graphs. Additionally, we introduce a graph perturbation mechanism to enhance the model’s environmental modeling capability for better generalization. We implement extensive experiments on both datasets with spatio-temporal shifts and datasets only with temporal shift, and results demonstrate that STONE achieves competitive performance in terms of both generalization and scalability. 
-For rebuttal, we will show the pseudo-code for the Fréchet embedding computation in the STONE model, joint tuning in the training phase and the computation framework of the STONE model, respectively.
+<br>
+For rebuttal, we will show the pseudo-code for <b>the Fréchet embedding computation</b> in the STONE model, <b>joint tuning in the training phase</b> and <b>the computation framework</b> of the STONE model, respectively.
 
 <img src='img/Spatial Fréchet Embedding Layer.png' width='300px' alt='The algorithm of Spatial Fréchet Embedding Layer'>
 
