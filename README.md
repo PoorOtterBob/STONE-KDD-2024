@@ -20,12 +20,11 @@ First of all, you should go through a jupyter notebook `process_ca_his.ipynb` in
 ```
 python data/generate_data_for_training.py --dataset sd_gba --years 2019_2020_2021
 ```
-## 2. Data Processing
 
-## 3. Environmental Requirments
+## 2. Environmental Requirments
 The experiment requires the same environment as [LargeST](https://github.com/liuxu77/LargeST/blob/main).
 
-## 4. Model Running
+## 3. Model Running
 To run STONE, for example, you may execute this command in the terminal:
 ```
 bash experiments/stone/run.sh
