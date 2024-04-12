@@ -31,5 +31,5 @@ bash experiments/stone/run.sh
 ```
 or directly execute the Python file in the terminal:
 ```
-python experiments/stone/main.py --device cuda:0 --dataset SD --years 2019 --model_name stone --seed 0 --bs 64 --c 10 --ood 1 --tood 1
+python experiments/stone/main.py --device cuda:0 --dataset SD --years 2019 --model_name stone --seed 0 --bs 64
 ```
