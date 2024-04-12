@@ -222,8 +222,7 @@ class KrigingEngine():
                 label2 = label[:, :, self._node[mode + '_unobserved_node'], :]
 
                 X, label1, label2 = self._to_device(self._to_tensor([X, label1, label2]))
-                pred1, pred2 ,x_adj, sem_adj = self.model(X, sem) # [x_ob, se adj, tadj_ob]
-                # pred1, pred2 = self.model(X, sem) # [x_ob, se adj, tadj_ob]
+                pred1, pred2 = self.model(X, sem)
                 pred1, pred2, label1, label2 = self._inverse_transform([pred1, pred2, label1, label2], mode)
 
                 preds1.append(pred1.squeeze(-1).cpu())
