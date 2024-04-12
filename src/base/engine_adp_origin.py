@@ -191,10 +191,8 @@ class BaseEngine():
                 if isinstance(adj, list):
                     adj = self._to_device(self._to_tensor(adj))
                 else: adj = self._to_device(self._to_tensor([adj]))
-                X, label1 = self._to_device(self._to_tensor([X, label1])) # STGCN, GWNET
-                pred = self.model(X, adj, label1) # STGCN
-                # X, label1, label2, label = self._to_device(self._to_tensor([X, label1, label2, label])) # DCRNN
-                # pred = self.model(X, label, adj) # DCRNN
+                X, label1 = self._to_device(self._to_tensor([X, label1]))
+                pred = self.model(X, adj, label1)
                 pred1 = pred[..., :self.num_node_ob, :]
                 pred1, label1= self._inverse_transform([pred1, label1], mode)
 
