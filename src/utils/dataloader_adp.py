@@ -44,24 +44,12 @@ class DataLoader(object):
     
     # shuffle batch order in one epoch
     def shuffle_batch(self):
-        # 将 self.idx 转换为 NumPy 数组
-        # 分割数组为固定大小的块
         blocks = [self.idx[i:i+self.bs] for i in range(0, self.size, self.bs)]
-        # 随机打乱块的顺序
         random.shuffle(blocks)
-        # 重新组合块成为打散后的数组，保持块内部顺序不变
         idx = np.concatenate(blocks)
         if self.size % self.bs != 0:
             print('Warning: In shuffle_batch, the batch size does not evenly divide the array size.')
 
-
-
-    # x (b, t, n ,f) 交通流量数据
-    # y (b, t, n, 1) 交通流量需预测数据
-    # dx (b, o, n, n) 节点流量差距
-    # dy (b, o, n, n) 节点流量需预测差距
-    # sx (b, o, n, n) 节点流量相似度 1/1+dx
-    # sy (b, o, n, n) 节点流量需预测相似度
     def write_to_shared_array(self, x, y, idx_ind, start_idx, end_idx):
         r = 0.01
         for i in range(start_idx, end_idx):
@@ -76,20 +64,7 @@ class DataLoader(object):
                 start_ind = self.bs * self.current_ind
                 end_ind = min(self.size, self.bs * (self.current_ind + 1))
                 idx_ind = self.idx[start_ind: end_ind, ...]
-                
-                # data: (总时间步长, 顶点数, 特征通道)
-                # 特征通道：时间点值，于当天的时间，于本周的时间
-                # x (b, t, n, f), label (b, t, n, 1)
-                # dx (b, 1+2*o, n, n), dy (b, 1+2*o, n, n)
-                # sx (th, b, 1+2*o, n, n, f), sy (b, 1+2*o, n, n, 1)
-                # tet (b, o, n', ll)
-                # b: len(idx_ind)
-                # t: self.seq_len
-                # n: self.data.shape[1]
-                # f: self.data.shape[-1]
-                # o: self.order
-                # n': self.node.shape[0] + self.node.shape[-1]
-                # ll : num of anchor set
+
                 x_shape = (len(idx_ind), self.seq_len, self.data.shape[1], self.data.shape[-1])
                 x_shared = mp.RawArray('f', int(np.prod(x_shape)))
                 x = np.frombuffer(x_shared, dtype='f').reshape(x_shape)
@@ -222,35 +197,24 @@ class Spatial_Embedding():
     # ex: 500 nodes for training set and 50 other nodes for addtion nodes in the val. and testing set. 
     # num_val is the number of different validation sets.
     # [1 + (num_val + 1) * new_node_ratio] * traning_set_node = num_nodes
-    # 输出为三种集合的点
     # e.g. —— SD: num_nodes = 716, new_node_ratior = 0.1, num_val = 2
     def dataset_node_segment(self):
         np.random.seed(self.seed)
-        # 生成节点索引
         node_indices = np.arange(self.num_nodes)
-        # 随机打乱节点索引
         np.random.shuffle(node_indices)
-        # 固定节点个数
         num_fixed_node = min(int(self.num_nodes / (1 + (self.num_val + 2) * self.new_node_ratio)), \
                              self.num_nodes - self.num_val - 2)
-        # 新增节点数量
         num_additional_nodes_per = max(int(num_fixed_node * self.new_node_ratio), 1)
-        # 固定节点索引
         fixed_indices = np.sort(node_indices[:num_fixed_node])
-        # 划分训练集
         train_indices = [fixed_indices, np.sort(node_indices[num_fixed_node:num_fixed_node + num_additional_nodes_per])]
-        # 划分验证集
         val_indices = {}
         for i in range(self.num_val):
             start_index = num_fixed_node + ((i+1) * num_additional_nodes_per)
             end_index = start_index + num_additional_nodes_per
         val_indices[i] = [fixed_indices, \
                           np.sort(node_indices[start_index:end_index])]
-        # 划分测试集
         test_indices = [fixed_indices, \
                         np.sort(node_indices[num_fixed_node + ((self.num_val+1) * num_additional_nodes_per) : num_fixed_node + ((self.num_val+2) * num_additional_nodes_per)])]
-        
-        # dataset_node_segment_index = [fixed_indices, train_indices, val_indices, test_indices]
         
         indices = {
         'fixed': fixed_indices,
@@ -267,10 +231,6 @@ class Spatial_Embedding():
     def SSI_func(self, ob, dist):
         return SSI(ob, self.epsilon, self.c, self.seed, self.device).spatial_emb_matrix(adj=self.adj, dist=dist)
 
-    ###以下为将num_node进行未知节点的划分###
-    ###并进行SEM的计算###
-    # Spatial Side Information
-    # sem: Spatial Embedding Matrix (n, d), d为向量长度
     def load_node_index_and_segemnt(self):
         dataset_node_segment_index, num_ob, num_un = self.dataset_node_segment()
         node = {}
@@ -320,8 +280,7 @@ class Spatial_Embedding():
                     adj[cat+'_observed'] = self.adj[node[cat + '_observed_node'], :][:, node[cat + '_observed_node']]
                     print('SEM for ' + cat + ' set has been calculated: ' + str(sem[cat].shape))
         else: 
-            # extra = dataset_node_segment_index['val_indices'][0]
-            extra = dataset_node_segment_index['train_indices']
+            extra = dataset_node_segment_index['test_indices']
             if self.test_ratio == 0.05:
                 node['test'] = dataset_node_segment_index['test_indices']
                 node['test'][-1] = node['test'][-1][:len(node['test'][-1])//2]
