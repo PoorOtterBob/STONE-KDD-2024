@@ -98,28 +98,23 @@ class KrigingEngine():
         train_loss1 = []
         train_mape1 = []
         train_rmse1 = []
-        # 不能提前shuffle, 只可以在送进ST-Block之前再shuffle, 但是需要用对整个batch的输入做shuffle
-        # self._dataloader['train_loader'].shuffle_batch()
         self._dataloader['train_loader'].shuffle()
         for X, label in self._dataloader['train_loader'].get_iterator():
             self._optimizer.zero_grad()
             
-            # 加上S_delta: SEM的噪音
             spatial_noise = True
             sem = self._sem['train'][:len(self._node['train_observed_node']), :]
-            sem = torch.stack([sem]*X.shape[0], dim=0) # (n, d) -> (d, n) -> (b, d, n) -> (b, d, n, 1)
-            # X (b, t, n, f), label (b, t, n, 1), D (b, o, n, n)
+            sem = torch.stack([sem]*X.shape[0], dim=0)
             if spatial_noise:
-                mean = 0  # 均值
-                std = 1 # 标准差
+                mean = 0
+                std = 1
                 sem = torch.add(sem, self._to_device(torch.normal(mean, std, sem.shape)))
                 sem = torch.clamp(sem, min=0)
-            # X (b, t, n, f), label (b, t, n, 1), D (b, o, n, n)
             X = X[:, :, self._node['train_observed_node'], :]
             label1 = label[..., self._node['train_observed_node'], :]
             
             X, label1 = self._to_device(self._to_tensor([X, label1]))
-            pred1, _ = self.model(X, sem) # [x_ob, sem, adj_ob, adj, tadj_ob]
+            pred1, _ = self.model(X, sem)
             pred1, label1 = self._inverse_transform([pred1, label1], 'train')
             mask_value1 = torch.tensor(0)
             if label1.min() < 1:
@@ -174,7 +169,6 @@ class KrigingEngine():
             loss = mvalid_loss1
             if loss < min_loss:
                 self.save_model(self._save_path)
-                # self._logger.info('Val loss decrease from {:.4f} to {:.4f}'.format((mvalid_loss1+mvalid_loss11)/2.+mvalid_loss2))
                 self._logger.info('Val loss decrease from {:.4f} to {:.4f}'.format(min_loss, loss))
                 min_loss = loss
                 wait = 0
@@ -202,7 +196,7 @@ class KrigingEngine():
                 label1 = label[:, :, self._node[mode + '_observed_node'], :]
 
                 X, label1 = self._to_device(self._to_tensor([X, label1]))
-                pred1, _ = self.model(X, sem) # [x_ob, se adj, tadj_ob]
+                pred1, _ = self.model(X, sem)
                 pred1, label1 = self._inverse_transform([pred1, label1], mode)
 
                 preds1.append(pred1.squeeze(-1).cpu())
@@ -211,7 +205,6 @@ class KrigingEngine():
         preds1 = torch.cat(preds1, dim=0)
         labels1 = torch.cat(labels1, dim=0)
 
-        # handle the precision issue when performing inverse transform to label
         mask_value1 = torch.tensor(0)
         if labels1.min() < 1:
             mask_value1 = labels1.min()
