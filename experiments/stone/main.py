@@ -166,8 +166,7 @@ def main():
                    gate_output_dim=gate_output_dim, 
                    horizon=args.horizon
                    )
-    # print('complete model')
-    
+
     loss_fn = masked_mae
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lrate, weight_decay=args.wdecay)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
