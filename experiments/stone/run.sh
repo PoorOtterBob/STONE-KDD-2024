@@ -1,37 +1,32 @@
-# python experiments/stgode/main.py --device cuda:2 --dataset CA --years 2019 --model_name stgode --seed 2018 --bs 12
-
-# python experiments/stgode/main.py --device cuda:2 --dataset GLA --years 2019 --model_name stgode --seed 2018 --bs 28
-
-# python experiments/stgode/main.py --device cuda:2 --dataset GBA --years 2019 --model_name stgode --seed 2018 --bs 48
-
-# python experiments/stgode/main.py --device cuda:2 --dataset SD --years 2019 --model_name stgode --seed 2018 --bs 64
-
 ## Spatial Temporal OOD ##
 # SD 2019
-
+# python experiments/stone/main.py --device cuda:0 --dataset SD --years 2019 --model_name stone --seed 0 --bs 64 --c 10 --ood 1 --tood 1
 # SD 2020
-
+# python experiments/stone/main.py --device cuda:0 --dataset SD --years 2020 --model_name stone --seed 0 --bs 64 --c 10 --ood 1 --tood 1
 # GBA 2019
-
+# python experiments/stone/main.py --device cuda:0 --dataset GBA --years 2019 --model_name stone --seed 0 --bs 64 --c 30 --ood 1 --tood 1
 # GBA 2020
+# python experiments/stone/main.py --device cuda:0 --dataset GBA --years 2020 --model_name stone --seed 0 --bs 64 --c 30 --ood 1 --tood 1
 
 
 ## Only Temporal OOD ##
 # SD 2019
-
+# python experiments/stone/main.py --device cuda:0 --dataset SD --years 2019 --model_name stone --seed 0 --bs 64 --c 10 --ood 0 --tood 1
 # SD 2020
-
+# python experiments/stone/main.py --device cuda:0 --dataset SD --years 2020 --model_name stone --seed 0 --bs 64 --c 10 --ood 0 --tood 1
 # GBA 2019
-
+# python experiments/stone/main.py --device cuda:0 --dataset GBA --years 2019 --model_name stone --seed 0 --bs 64 --c 30 --ood 0 --tood 1
 # GBA 2020
+# python experiments/stone/main.py --device cuda:0 --dataset GBA --years 2020 --model_name stone --seed 0 --bs 64 --c 30 --ood 0 --tood 1
 
 
 ## Non-OOD ##
 # SD 2019
-
+# python experiments/stone/main.py --device cuda:0 --dataset SD --years 2019 --model_name stone --seed 0 --bs 64 --c 10 --ood 0 --tood 0
 # SD 2020
-
+# python experiments/stone/main.py --device cuda:0 --dataset SD --years 2020 --model_name stone --seed 0 --bs 64 --c 10 --ood 0 --tood 0
 # GBA 2019
-
+# python experiments/stone/main.py --device cuda:0 --dataset GBA --years 2019 --model_name stone --seed 0 --bs 64 --c 30 --ood 0 --tood 0
 # GBA 2020
+# python experiments/stone/main.py --device cuda:0 --dataset GBA --years 2020 --model_name stone --seed 0 --bs 64 --c 30 --ood 0 --tood 0
 
