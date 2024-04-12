@@ -10,7 +10,6 @@ import torch
 torch.set_num_threads(3)
 from src.base.stone import STONE
 from src.utils.args import get_public_config
-# from src.utils.dataloader import load_dataset, load_adj_from_numpy, get_dataset_info, Spatial_Embedding
 from src.utils.graph_algo import normalize_adj_mx
 from src.utils.metrics import masked_mae
 from src.utils.logging import get_logger
@@ -106,9 +105,6 @@ def main():
     if args.mode == 'test':
         cat = 'test'
         adj[cat] = normalize_adj_mx(adj[cat], args.adj_type)
-        # origin_adj = adj[cat][0]
-        # np.save('origin_adj.npy', origin_adj)
-        # print('origin adj done')
         adj[cat + '_observed'] = normalize_adj_mx(adj[cat + '_observed'], args.adj_type)
         adj[cat] = [torch.tensor(adj, dtype=torch.float32).to(device) for adj in adj[cat]]
         adj[cat + '_observed'] = [torch.tensor(adj, dtype=torch.float32).to(device) for adj in adj[cat + '_observed']]
