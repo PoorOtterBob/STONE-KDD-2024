@@ -86,7 +86,6 @@ class STBlock(nn.Module):
         for j in range(self.TBlocks_len + 1):
             x = self.t_mlp[j](x)
             x_list.append(x)
-            # print(x.shape)
         x = torch.cat(x_list, dim=2)
         return x, sem
 
@@ -405,7 +404,6 @@ class GatedFusionBlock(nn.Module):
 
 
     def forward(self, x, sem):
-        # gate and softmax
         gate_sem = self.gate_sem(torch.cat((sem, x), dim=-1))
         gate_sem = self.sigmoid(gate_sem)          
         output = self.gate_x(x)
