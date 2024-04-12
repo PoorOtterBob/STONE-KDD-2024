@@ -81,16 +81,14 @@ def main():
     # adj is coo_matrix (no! dense!)
     adj = normalize_adj_mx(adj_mx, 'origin')[0]
     
-
-    # node segment 然后搞sem
     if args.mode == 'test':
         istest = True
         test_ratio = args.test_ratio # test what u want
     else:
         istest = False
         test_ratio = None
-    # node segment 然后搞sem
-   
+    
+    # node segment
     node_segment, sem, adj, node_num_ob, node_num_un= Spatial_Embedding(num_nodes=node_num, 
                                                                         adj=adj, 
                                                                         new_node_ratio=args.new_node_ratio, 
