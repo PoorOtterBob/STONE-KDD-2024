@@ -129,28 +129,7 @@ def compute_all_similarity(preds, labels, null_val):
 def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
                            subgraph_idx, subgraph_idx_base, num_canonical_order, 
                            sum_order_log_prob=False, return_neg_log_prob=False, reduction="mean"):
-  """
-    Compute likelihood for mixture of Bernoulli model
-
-    Args:
-      label: E X 1, see comments above
-      log_theta: E X D, see comments above
-      log_alpha: E X D, see comments above
-      adj_loss_func: BCE loss
-      subgraph_idx: E X 1, see comments above
-      subgraph_idx_base: B+1, cumulative # of edges in the subgraphs associated with each batch
-      num_canonical_order: int, number of node orderings considered
-      sum_order_log_prob: boolean, if True sum the log prob of orderings instead of taking logsumexp 
-        i.e. log p(G, pi_1) + log p(G, pi_2) instead of log [p(G, pi_1) + p(G, pi_2)]
-        This is equivalent to the original GRAN loss.
-      return_neg_log_prob: boolean, if True also return neg log prob
-      reduction: string, type of reduction on batch dimension ("mean", "sum", "none")
-
-    Returns:
-      loss (and potentially neg log prob)
-  """
-
-  num_subgraph = subgraph_idx_base[-1] # == subgraph_idx.max() + 1
+  num_subgraph = subgraph_idx_base[-1]
   B = subgraph_idx_base.shape[0] - 1
   C = num_canonical_order
   E = log_theta.shape[0]
@@ -159,7 +138,7 @@ def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
   adj_loss = torch.stack(
       [adj_loss_func(log_theta[:, kk], label) for kk in range(K)], dim=1)
 
-  const = torch.zeros(num_subgraph).to(label.device) # S
+  const = torch.zeros(num_subgraph).to(label.device)
   const = const.scatter_add(0, subgraph_idx,
                             torch.ones_like(subgraph_idx).float())
 
@@ -174,16 +153,16 @@ def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
   reduce_log_alpha = F.log_softmax(reduce_log_alpha, -1)
 
   log_prob = -reduce_adj_loss + reduce_log_alpha
-  log_prob = torch.logsumexp(log_prob, dim=1) # S, K
+  log_prob = torch.logsumexp(log_prob, dim=1)
 
-  bc_log_prob = torch.zeros([B*C]).to(label.device) # B*C
-  bc_idx = torch.arange(B*C).to(label.device) # B*C
+  bc_log_prob = torch.zeros([B*C]).to(label.device)
+  bc_idx = torch.arange(B*C).to(label.device)
   bc_const = torch.zeros(B*C).to(label.device)
-  bc_size = (subgraph_idx_base[1:] - subgraph_idx_base[:-1]) // C # B
-  bc_size = torch.repeat_interleave(bc_size, C) # B*C
-  bc_idx = torch.repeat_interleave(bc_idx, bc_size) # S
+  bc_size = (subgraph_idx_base[1:] - subgraph_idx_base[:-1]) // C
+  bc_size = torch.repeat_interleave(bc_size, C)
+  bc_idx = torch.repeat_interleave(bc_idx, bc_size)
   bc_log_prob = bc_log_prob.scatter_add(0, bc_idx, log_prob)
-  # loss must be normalized for numerical stability
+
   bc_const = bc_const.scatter_add(0, bc_idx, const)
   bc_loss = (bc_log_prob / bc_const)
 
@@ -195,9 +174,7 @@ def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
   else:
     b_log_prob = torch.logsumexp(bc_log_prob, dim=1)
     b_loss = torch.logsumexp(bc_loss, dim=1)
-
-  # probability calculation was for lower-triangular edges
-  # must be squared to get probability for entire graph
+      
   b_neg_log_prob = -2*b_log_prob
   b_loss = -b_loss
   
@@ -216,12 +193,3 @@ def mixture_bernoulli_loss(label, log_theta, log_alpha, adj_loss_func,
     return loss, neg_log_prob
   else:
     return loss
-  
-'''
-adj_loss = mixture_bernoulli_loss(label, log_theta, log_alpha,
-                                      self.adj_loss_func, subgraph_idx, subgraph_idx_base,
-                                      self.num_canonical_order)
-### Loss functions
-pos_weight = torch.ones([1]) * self.edge_weight
-self.adj_loss_func = nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction='none')
-'''
