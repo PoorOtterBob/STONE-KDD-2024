@@ -8,14 +8,8 @@ import torch.nn.functional as F
 import torch.nn.init as init
 import numpy as np
 from src.base.model import BaseModel
-from src.utils.initialize import glorot
 EPS = np.finfo(np.float32).eps
 torch.autograd.set_detect_anomaly(True)
-
-        
-################################################################
-################STConvDiffModel#################################
-################################################################
     
 class STONE(BaseModel):
     def __init__(self, SBlocks, TBlocks, node_num_un, node_num_ob, sem_dim, has_shallow_encode, 
@@ -43,13 +37,12 @@ class STONE(BaseModel):
         x = self.relu(x)
         x = self.x2(x).transpose(2, 3)
         x, sem, x_adj, sem_adj = self.staggblocks(x.permute(0, 3, 1, 2).squeeze(-1), sem)
-        # x, sem = self.staggblocks(x.permute(0, 3, 1, 2).squeeze(-1), sem)
         x = self.gatefusion(x, sem)
         x1 = x[..., :self.node_num_ob, :]
         x2 = x[..., self.node_num_ob:, :] 
 
-        # return x1, x2
-        return x1, x2, x_adj, sem_adj
+        return x1, x2
+        # return x1, x2, x_adj, sem_adj
 
 class STBlock(nn.Module):
     def __init__(self, SBlocks, TBlocks, node_num_ob, node_num_un, dropout, Kt, sem_dim, has_shallow_encode):
@@ -102,13 +95,8 @@ class STAggBlock(nn.Module):
     def __init__(self, x_input_dim, x_output_dim, sem_input_dim, sem_output_dim, 
                  node_num_ob, node_num_un, dropout, Ks_s, Ks_t, adp_s_dim, adp_t_dim):
         super(STAggBlock, self).__init__()
-        # 原始邻接矩阵
-        # self.t_diff1 = TGraphDiffLayer(sem_input_dim, sem_output_dim, Ks_t)
-        # self.s_conv1 = SGraphConvLayer(x_input_dim, x_output_dim, Ks_s)
-        
-        # 自适应邻接矩阵
+        # adp_adj
         self.t_diff2 = TGraphDiffLayer(sem_input_dim, sem_output_dim, Ks_t)
-        # self.t_diff2 = SGraphConvLayer(sem_input_dim, sem_output_dim, Ks_t)
         self.s_conv2 = SGraphConvLayer(x_input_dim, x_output_dim, Ks_s)
         self.t_adpadj = AdaptiveInteraction(x_input_dim, adp_s_dim, node_num_ob+node_num_un)
         self.s_adpadj = AdaptiveInteraction(sem_input_dim, adp_t_dim, node_num_ob+node_num_un)
@@ -123,9 +111,6 @@ class STAggBlock(nn.Module):
         sem_adpadj = self.t_adpadj(x)
         x_adpadj = self.s_adpadj(sem)
 
-        # x = self.s_conv1(x, adj) + self.s_conv2(x, x_adpadj)
-        # sem = self.t_diff1(sem, t_adj) + self.t_diff2(sem, sem_adpadj)
-
         x = self.s_conv2(x, x_adpadj)
         sem = self.t_diff2(sem, sem_adpadj)
 
@@ -138,9 +123,6 @@ class STAggBlock(nn.Module):
         x = self.dropout(x)
         sem = self.dropout(sem)
         
-        # x = self.bn_x(x.transpose(1, 2)).transpose(1, 2)
-        # sem = self.bn_sem(sem.transpose(1, 2)).transpose(1, 2)
-        # return x, sem, x_adpadj, sem_adpadj
         return x, sem, x_adpadj, sem_adpadj
 
 
@@ -148,7 +130,6 @@ class Attention_MLP(nn.Module):
     def __init__(self, node_num, input_dim, output_dim, hidden_dim, dropout, sem_dim=None, has_shallow_encode=True, has_attention=True, num_layer=1):
         super(Attention_MLP, self).__init__()
         if has_shallow_encode:
-            # self.shallow_encode = nn.Linear(sem_dim, input_dim)
             self.shallow_encode = nn.Sequential(nn.Linear(sem_dim, input_dim),
                                                 nn.ReLU(),
                                                 nn.Linear(input_dim, input_dim)) 
@@ -168,12 +149,7 @@ class Attention_MLP(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, sem):
-        # sem (n, d)
-        # sem = self.dropout(sem)
         if self.has_shallow_encode:
-            # print(sem.device)
-            # print(next(self.shallow_encode.parameters()).device)
-            #print(name for name,key in self.shallow_encode.parameters() if key.device!=sem.device)
             sem = self.shallow_encode(sem)
         gate = self.gate(sem)
         residual = sem
@@ -191,7 +167,6 @@ class Attention_MLP(nn.Module):
         return sem
 
 
-# (b, f, t, n) -> (b, t, f, n)
 class Dilation_Gated_TemporalConvLayer(nn.Module):
     def __init__(self, Kt, c_in, c_out, dilation, node_num):
         super(Dilation_Gated_TemporalConvLayer, self).__init__()
@@ -206,13 +181,13 @@ class Dilation_Gated_TemporalConvLayer(nn.Module):
         self.dilation = dilation
 
     def forward(self, x):
-        x_in = self.align(x)[:, :, (self.Kt - 1)*self.dilation:, :] # (b, f, t, n)
+        x_in = self.align(x)[:, :, (self.Kt - 1)*self.dilation:, :]
         x_causal_conv = self.causal_conv(x)
 
         x_p = x_causal_conv[:, : self.c_out, :, :]
         x_q = x_causal_conv[:, -self.c_out:, :, :]
-        x = torch.mul((x_p + x_in), self.sigmoid(x_q)) # (b, t, f', n)
-        return x # (b, t, f', n)
+        x = torch.mul((x_p + x_in), self.sigmoid(x_q))
+        return x
 
 
 class CausalConv2d(nn.Conv2d):
@@ -234,8 +209,6 @@ class CausalConv2d(nn.Conv2d):
         result = super(CausalConv2d, self).forward(input)
         return result
 
-
-###自适应diff/conv module块###
 class AdaptiveInteraction(nn.Module):
     def __init__(self, input_dim, output_dim, node_num, **args):
         super(AdaptiveInteraction, self).__init__(**args)
@@ -255,7 +228,7 @@ class AdaptiveInteraction(nn.Module):
         self.output_dim = output_dim
     
     def forward(self, input):
-        if False:
+        if True:
             E_out1 = self.E_out1(input)
             E_in1 = self.E_in1(input)
 
@@ -275,10 +248,8 @@ class AdaptiveInteraction(nn.Module):
             E_out3 = self.bn2(E_in3.transpose(1,2)).transpose(1,2)
 
             if len(input.shape) == 2:
-                # adp_adj = torch.einsum('ik, jk -> ij', E_out, E_in)/math.sqrt(self.output_dim)
                 adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)
             else:
-                # adp_adj = torch.einsum('bik, bjk -> bij', E_out, E_in)/math.sqrt(self.output_dim)
                 adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)
             adp_adj = self.relu(adp_adj)
             adp_adj = self.softmax(adp_adj)
@@ -301,80 +272,13 @@ class AdaptiveInteraction(nn.Module):
             E_out3 = torch.einsum('bij,bjd->bid', E_out, E_out3)
             E_in3 = torch.einsum('bij,bjd->bid', E_in, E_in3)
 
-            # E_out3 = self.bn1(E_out3.transpose(1,2)).transpose(1,2)
-            # E_out3 = self.bn2(E_in3.transpose(1,2)).transpose(1,2)
-
             if len(input.shape) == 2:
-                # adp_adj = torch.einsum('ik, jk -> ij', E_out, E_in)/math.sqrt(self.output_dim)
                 adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)/math.sqrt(self.output_dim)
             else:
-                # adp_adj = torch.einsum('bik, bjk -> bij', E_out, E_in)/math.sqrt(self.output_dim)
                 adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)/math.sqrt(self.output_dim)
-            # adp_adj = self.relu(adp_adj)
-            # adp_adj = self.softmax(adp_adj)
             adp_adj = torch.softmax(adp_adj, dim=-1)
         return adp_adj
-    '''
-    def forward(self, input):
-        E_out1 = self.E_out1(input)
-        E_in1 = self.E_in1(input)
 
-        E_out2 = self.E_out2(input)
-        E_in2 = self.E_in2(input)
-
-        E_out3 = self.E_out3(input)
-        E_in3 = self.E_in3(input)
-        
-        E_out = torch.einsum('bid,bjd->bij', E_out1, E_out2)/math.sqrt(self.output_dim)
-        E_in = torch.einsum('bid,bjd->bij', E_in1, E_in2)/math.sqrt(self.output_dim)
-
-        E_out = self.softmax(E_out)
-        E_in = self.softmax(E_in)
-
-        E_out3 = torch.einsum('bij,bjd->bid', E_out, E_out3)
-        E_in3 = torch.einsum('bij,bjd->bid', E_in, E_in3)
-
-        # E_out3 = self.bn1(E_out3.transpose(1,2)).transpose(1,2)
-        # E_out3 = self.bn2(E_in3.transpose(1,2)).transpose(1,2)
-
-        if len(input.shape) == 2:
-            # adp_adj = torch.einsum('ik, jk -> ij', E_out, E_in)/math.sqrt(self.output_dim)
-            adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)/math.sqrt(self.output_dim)
-        else:
-            # adp_adj = torch.einsum('bik, bjk -> bij', E_out, E_in)/math.sqrt(self.output_dim)
-            adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)/math.sqrt(self.output_dim)
-        # adp_adj = self.relu(adp_adj)
-        # adp_adj = self.softmax(adp_adj)
-        adp_adj = torch.softmax(adp_adj, dim=1)
-        return adp_adj
-    '''
-'''
-class AdaptiveInteraction(nn.Module):
-    def __init__(self, input_dim, output_dim, **args):
-        super(AdaptiveInteraction, self).__init__(**args)
-        self.E_out = nn.Linear(input_dim, output_dim)
-        self.E_in = nn.Linear(input_dim, output_dim)
-        # self.ln = nn.LayerNorm([node_num, output_dim])
-        self.relu = nn.ReLU()
-        self.softmax = nn.Softmax(dim=-1)
-
-        self.output_dim = output_dim
-        
-    def forward(self, input):
-        E_out = self.E_out(input)
-        E_in = self.E_in(input)
-        if len(input.shape) == 2:
-            adp_adj = torch.einsum('bik, bjk -> bij', E_out, E_in)/math.sqrt(self.output_dim)
-            # adp_adj = torch.einsum('ik, jk -> ij', E_out, E_in)
-        else:
-            adp_adj = torch.einsum('bik, bjk -> bij', E_out, E_in)/math.sqrt(self.output_dim)
-            # adp_adj = torch.einsum('bik, bjk -> bij', E_out, E_in)
-        adp_adj = self.relu(adp_adj)
-        adp_adj = self.softmax(adp_adj)
-        return adp_adj
-'''
-
-###地理信息在TGraph上Diffusion###
 class TGraphDiffLayer(nn.Module):
     def __init__(self, c_in, c_out, Ks):
         super(TGraphDiffLayer, self).__init__()
@@ -386,9 +290,7 @@ class TGraphDiffLayer(nn.Module):
 
     def forward(self, x, gso):
         x_gc_in = self.align(x)
-        # x_gc_in = x
-        x_gc = self.cheb_tgraph_conv(x_gc_in, gso) # (b, d', n, 1) -> (b, 1, n, d)
-        # x_gc = x_gc.permute(0, 3, 1, 2) # (b, 1, d', n) -> (b, d', n, 1)
+        x_gc = self.cheb_tgraph_conv(x_gc_in, gso)
         x_gc_out = torch.add(x_gc, x_gc_in)
         return x_gc_out
 
@@ -409,7 +311,6 @@ class TGraphDiff(nn.Module):
         bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
         init.uniform_(self.bias, -bound, bound)
 
-    # sem_ob: (b, d, n, 1), tadj_ob: (b, o, n, n)
     def forward(self, x, gso):
         x_list = [x]
         if self.Ks - 1 < 0:
@@ -418,30 +319,11 @@ class TGraphDiff(nn.Module):
             adj = gso
             for i in range(self.Ks):
                 x_list.append(torch.einsum('bij,bjd->bid', adj, x_list[i]))
-                # adj = torch.einsum('bik, bkj -> bij', adj, gso)
         x = torch.stack(x_list, dim=0)
-        # cheb_graph_conv = torch.einsum('bikht,kij->bjht', x, self.weight) # (b, d', n, 1) -> (b, 1, n, d')
-        cheb_graph_conv = torch.einsum('kbit,kts->bis', x, self.weight) # (b, d', n, 1) -> (b, 1, n, d')
-        cheb_graph_conv = torch.add(cheb_graph_conv, self.bias)
-        return cheb_graph_conv # (b, 1, n, d') -> (b, d, n, 1)
-        '''
-        # x = torch.permute(x, (0, 2, 3, 1)) # (b, 1, d', n) -> (b, d', n, 1)
-        x_list = [x]
-        if self.Ks - 1 < 0:
-            raise ValueError(f'ERROR: the graph convolution kernel size Ks has to be a positive integer, but received {self.Ks}.')  
-        else:
-            adj = gso
-            for i in range(1, self.Ks):
-                x_list.append(torch.einsum('bij,bjd->bid', adj, x))
-                adj = torch.einsum('bik, bkj -> bij', adj, gso)
-        x = torch.stack(x_list, dim=0)
-        # cheb_graph_conv = torch.einsum('bikht,kij->bjht', x, self.weight)
-        cheb_graph_conv = torch.einsum('kbid,kds->bis', x, self.weight)
+        cheb_graph_conv = torch.einsum('kbit,kts->bis', x, self.weight)
         cheb_graph_conv = torch.add(cheb_graph_conv, self.bias)
         return cheb_graph_conv
-        '''
 
-###时间信息在SGraph上Convolution###
 class SGraphConvLayer(nn.Module):
     def __init__(self, c_in, c_out, Ks):
         super(SGraphConvLayer, self).__init__()
@@ -454,47 +336,10 @@ class SGraphConvLayer(nn.Module):
     
     def forward(self, x, adj):
         x_tgc_in = self.align(x)
-        # x_tgc_in = x
-        x_tgc = self.tgraph_diff(x_tgc_in, adj) # (b, 1, n, d')
-        # x_tgc = x_tgc.permute(0, 3, 1, 2) # (b, 1, n, d') -> (b, d', n, 1)
+        x_tgc = self.tgraph_diff(x_tgc_in, adj)
         x_tgc_out = x_tgc_in
         x_tgc_out = torch.add(x_tgc, x_tgc_out)
         return x_tgc_out
-'''
-class SGraphConv(nn.Module):
-    def __init__(self, c_in, c_out, Ks):
-        super(SGraphConv, self).__init__()
-        self.c_in = c_in
-        self.c_out = c_out
-        self.Ks = Ks
-        # self.weight = nn.Parameter(torch.FloatTensor(Ks+1, c_in, c_out))
-        # self.bias = nn.Parameter(torch.FloatTensor(c_out))
-        self.mlp = nn.Linear((Ks+1)*c_in, c_out)
-        self.relu = nn.ReLU()
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-        bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-        init.uniform_(self.bias, -bound, bound)
-
-    def forward(self, x, gso):
-        x_list = [x]
-        if self.Ks - 1 < 0:
-            raise ValueError(f'ERROR: the graph convolution kernel size Ks has to be a positive integer, but received {self.Ks}.')  
-        else:
-            adj = gso
-            for i in range(self.Ks):
-                x_list.append(torch.einsum('bij,bjd->bid', adj, x_list[i]))
-                # adj = torch.einsum('bik, bkj -> bij', adj, gso)
-        x = torch.cat(x_list, dim=-1)
-        cheb_graph_conv = self.mlp(x)
-        # cheb_graph_conv = torch.einsum('bikht,kij->bjht', x, self.weight) # (b, d', n, 1) -> (b, 1, n, d')
-        # cheb_graph_conv = torch.einsum('kbit,kts->bis', x, self.weight) # (b, d', n, 1) -> (b, 1, n, d')
-        # cheb_graph_conv = torch.add(cheb_graph_conv, self.bias)
-        return cheb_graph_conv # (b, 1, n, d') -> (b, d, n, 1)
-'''
 
 class SGraphConv(nn.Module):
     def __init__(self, c_in, c_out, Ks):
@@ -521,12 +366,11 @@ class SGraphConv(nn.Module):
             adj = gso
             for i in range(self.Ks):
                 x_list.append(torch.einsum('bij,bjd->bid', adj, x_list[i]))
-                # adj = torch.einsum('bik, bkj -> bij', adj, gso)
+
         x = torch.stack(x_list, dim=0)
-        # cheb_graph_conv = torch.einsum('bikht,kij->bjht', x, self.weight) # (b, d', n, 1) -> (b, 1, n, d')
-        cheb_graph_conv = torch.einsum('kbit,kts->bis', x, self.weight) # (b, d', n, 1) -> (b, 1, n, d')
+        cheb_graph_conv = torch.einsum('kbit,kts->bis', x, self.weight)
         cheb_graph_conv = torch.add(cheb_graph_conv, self.bias)
-        return cheb_graph_conv # (b, 1, n, d') -> (b, d, n, 1)
+        return cheb_graph_conv
 
 
 class Align(nn.Module):
@@ -536,7 +380,6 @@ class Align(nn.Module):
         self.c_out = c_out
         self.align_conv = nn.Conv2d(in_channels=c_in, out_channels=c_out, kernel_size=(1, 1))
 
-    # (b, t, f', n)
     def forward(self, x): 
         if self.c_in > self.c_out:
             x = self.align_conv(x)
@@ -545,10 +388,8 @@ class Align(nn.Module):
             x = torch.cat([x, torch.zeros([batch_size, self.c_out - self.c_in, timestep, node_num]).to(x)], dim=1)
         else:
             x = x
-        return x # (b, t, f', n)
+        return x
 
-
-###时空混淆输出###
 class GatedFusionBlock(nn.Module):
     def __init__(self, sem_input_dim, x_input_dim, gate_output_dim, horizon):
         super(GatedFusionBlock, self).__init__()
@@ -574,44 +415,3 @@ class GatedFusionBlock(nn.Module):
         output = self.out2(output)
         
         return output.transpose(1, 2).unsqueeze(-1)
-        '''
-        gate_1 = self.gate_sem(sem) # (b, n, d)
-        gate_2 = self.gate_x(x)
-        gate = torch.einsum('bik, bjk -> bij', gate_1, gate_2)/math.sqrt(self.gate_output_dim)
-        gate = torch.softmax(gate, dim=-1)
-
-        output = self.gate_x(x)
-        output = torch.einsum('bij, bjt -> bit', gate, output)
-        '''
-'''
-class GatedFusionBlock(nn.Module):
-    def __init__(self, sem_input_dim, x_input_dim, gate_output_dim):
-        super(GatedFusionBlock, self).__init__()
-        self.gate_sem1 = nn.Linear(sem_input_dim, gate_output_dim)
-        self.gate_x1 = nn.Linear(x_input_dim, gate_output_dim)
-        self.gate_sem2 = nn.Linear(sem_input_dim, gate_output_dim)
-        self.gate_x2 = nn.Linear(x_input_dim, gate_output_dim)
-        self.sigmoid = nn.Sigmoid()
-
-
-    def forward(self, x, sem):
-        # gate and softmax
-        gate_x = self.gate_x1(x)
-        gate_sem = self.gate_sem1(sem)
-        gate_x = self.sigmoid(gate_x)
-        gate_sem = self.sigmoid(gate_sem)
-        gate_x = torch.exp(x)
-        gate_sem = torch.exp(sem)
-        sum = gate_x + gate_sem
-        gate_x = gate_x / sum
-        gate_sem = gate_sem / sum
-
-        x = self.gate_x2(x)
-        sem = self.gate_sem2(sem)
-
-        # gate = self.sigmoid(gate_sem + gate_x)
-        # output = gate*sem + (1-gate)*x
-
-        output = gate_sem*sem + gate_x*x
-        return output
-'''
