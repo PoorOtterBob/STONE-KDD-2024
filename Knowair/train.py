@@ -6,13 +6,6 @@ from util import config, file_dir
 from graph import Graph
 from dataset import HazeData
 
-from model.MLP import MLP
-from model.LSTM import LSTM
-from model.GRU import GRU
-from model.GC_LSTM import GC_LSTM
-from model.nodesFC_GRU import nodesFC_GRU
-from model.PM25_GNN import PM25_GNN
-from model.PM25_GNN_nosub import PM25_GNN_nosub
 from model.STONE import STONE
 from frechet import Spatial_Embedding
 
@@ -120,28 +113,7 @@ def get_model():
                                                             istest=0,
                                                             test_ratio=0).load_node_index_and_segemnt()
     
-    if exp_model == 'MLP':
-        return MLP(hist_len, pred_len, in_dim), node_segment, sem_dist, sem_direc, node_num_ob, node_num_un, adj_dist, adj_direc
-    elif exp_model == 'LSTM':
-        return LSTM(hist_len, pred_len, in_dim, node_num_ob+node_num_un, batch_size, device), node_segment, sem_dist, sem_direc, node_num_ob, node_num_un, adj_dist, adj_direc
-    elif exp_model == 'GRU':
-        return GRU(hist_len, pred_len, in_dim, node_num_ob+node_num_un, batch_size, device), node_segment, sem_dist, sem_direc, node_num_ob, node_num_un, adj_dist, adj_direc
-    elif exp_model == 'nodesFC_GRU':
-        return nodesFC_GRU(hist_len, pred_len, in_dim, node_num_ob+node_num_un, batch_size, device), node_segment, sem_dist, sem_direc, node_num_ob, node_num_un, adj_dist, adj_direc
-    elif exp_model == 'GC_LSTM':
-        return GC_LSTM(hist_len, pred_len, in_dim, node_num_ob+node_num_un, batch_size, device, graph.edge_index), node_segment, sem_dist, sem_direc, node_num_ob, node_num_un, adj_dist, adj_direc
-    elif exp_model == 'PM25_GNN':
-        return PM25_GNN(hist_len, pred_len, in_dim, node_num_ob+node_num_un, batch_size, device, graph.edge_index, graph.edge_attr, wind_mean, wind_std), node_segment, sem_dist, sem_direc, node_num_ob, node_num_un, adj_dist, adj_direc
-    elif exp_model == 'PM25_GNN_nosub':
-        return PM25_GNN_nosub(hist_len, pred_len, in_dim, node_num_ob+node_num_un, batch_size, device, graph.edge_index, graph.edge_attr, wind_mean, wind_std), node_segment, sem_dist, sem_direc, node_num_ob, node_num_un, adj_dist, adj_direc
-    elif exp_model == 'STONE':
-        # print(city_num)
-        # print(graph.adj.shape) 184*184
-        # print(graph.edge_attr.shape) # 3796*2
-        # print(graph.edge_index.shape) # 2*3796
-        # print(graph.attr_adj_dist)
-        # print(graph.attr_adj_direc)
-        # sys.exit(0)
+    if exp_model == 'STONE':
         # For STONE
         blocks = []
         block = []
@@ -154,13 +126,10 @@ def get_model():
                 has_shallow_encode.append(False)
         for l in range(10):
             if l == 0:
-                blocks.append([25, 128]) # 13 = input dim, which is the feature dim
+                blocks.append([25, 128]) # 25 = input dim, which is the feature dim
             else:
                 blocks.append([128, 128])
-        # print(blocks)
-        # print(block)
-        # print(has_shallow_encode)
-        input_dim=25, # 8 or 9 or sth. else.
+        input_dim=25,
         output_dim=1,
         node_num=node_num_ob+node_num_un,
         node_num_un=node_num_un, 
@@ -179,8 +148,6 @@ def get_model():
         sem_output_dim=config['STONE']['sem_output_dim'], 
         gate_output_dim=config['STONE']['gate_output_dim'], 
         horizon=pred_len
-        # print(sem_dim)
-        # sys.exit(0)
         return STONE(input_dim=input_dim,
                      output_dim=output_dim,
                      node_num=node_num_ob+node_num_un,
@@ -220,51 +187,30 @@ def recode(edge_index, edge_attr, sub_node_index):
 def get_ood_graph(edge_index, edge_attr, node):
     edge_index_dict = {}
     edge_attr_dict = {}
-    # edge_index = torch.LongTensor(edge_index)
-    # edge_attr = torch.Tensor(np.float32(edge_attr))
     for cat in ['train', 'val', 'test']:
         edge_index_dict[cat], edge_attr_dict[cat] = recode(edge_index, edge_attr, node[cat+'_node'])
-        # edge_index_dict[cat] = edge_index[(edge_index[:, 0].unsqueeze(1) == node[cat+'_node']) & 
-        #                     (edge_index[:, 1].unsqueeze(1) == node[cat+'_node'])]
-        # edge_attr_dict[cat] = edge_attr[(edge_index[:, 0].unsqueeze(1) == node[cat+'_node']) & 
-        #                     (edge_index[:, 1].unsqueeze(1) == node[cat+'_node'])]
         print(cat, edge_index_dict[cat].shape, edge_attr_dict[cat].shape)
     return edge_index_dict, edge_attr_dict
-
-
-
 
 def train(train_loader, node, sem, model, optimizer, edge_index=None, edge_attr=None):
     model.train()
     train_loss = 0
-    # 加上S_delta: SEM的噪音
     spatial_noise = True
-    sem = torch.stack([sem]*32, dim=0) # 32 be batch_size, maybe rectify. 
+    sem = torch.stack([sem]*32, dim=0) # 32 is batch_size, maybe rectify. 
     for batch_idx, data in tqdm(enumerate(train_loader)):
         if spatial_noise:
-            mean = 0  # 均值
-            std = 0.1 # 标准差
+            mean = 0
+            std = 0.1
             sem_noise = torch.add(sem, torch.normal(mean, std, sem.shape).to(sem.device))
             sem_noise = torch.clamp(sem_noise, min=0)
         optimizer.zero_grad()
         pm25, feature, time_arr = data
-        pm25 = pm25[..., node, :].to(device) # (b, 2t, n, 1)
+        pm25 = pm25[..., node, :].to(device)
         feature = feature[..., node, :].to(device)
         pm25_label = pm25[:, hist_len:]
         pm25_hist = pm25[:, :hist_len]
-        # print(pm25_label.shape) (b, t, n, 1) need to predict
-        # print(feature.shape) (b, 2t, n, f=12)
-        # print(pm25_hist.shape) (b, t, n, 1)
-        # print(time_arr.shape) (b, 2t) sth. irrelvent to training/val.
-        # sys.exit(0)
         if type(model).__name__ == 'STONE':
             pm25_pred = model(torch.cat((pm25_hist, feature[:, :hist_len, ...], feature[:, hist_len:, ...]), dim=-1), sem_noise)
-        elif type(model).__name__ == 'GC_LSTM':
-            pm25_pred = model(pm25_hist, feature, edge_index.to(device))
-        elif type(model).__name__ == 'PM25_GNN':
-            pm25_pred = model(pm25_hist, feature, edge_index.to(device), edge_attr.to(device))
-        else:
-            pm25_pred = model(pm25_hist, feature)
         loss = criterion(pm25_pred, pm25_label)
         loss.backward()
         optimizer.step()
@@ -276,7 +222,7 @@ def train(train_loader, node, sem, model, optimizer, edge_index=None, edge_attr=
 def val(val_loader, node, sem, model, edge_index=None, edge_attr=None):
     model.eval()
     val_loss = 0
-    sem = torch.stack([sem]*32, dim=0) # 32 be batch_size, maybe rectify.
+    sem = torch.stack([sem]*32, dim=0) # 32 is batch_size, maybe rectify.
     for batch_idx, data in tqdm(enumerate(val_loader)):      
         pm25, feature, time_arr = data
         pm25 = pm25[..., node, :].to(device)
@@ -285,15 +231,8 @@ def val(val_loader, node, sem, model, edge_index=None, edge_attr=None):
         pm25_hist = pm25[:, :hist_len]
         if type(model).__name__ == 'STONE':
             pm25_pred = model(torch.cat((pm25_hist, feature[:, :hist_len, ...], feature[:, hist_len:, ...]), dim=-1), sem)
-        elif type(model).__name__ == 'GC_LSTM':
-            pm25_pred = model(pm25_hist, feature, edge_index.to(device))
-        elif type(model).__name__ == 'PM25_GNN':
-            pm25_pred = model(pm25_hist, feature, edge_index.to(device), edge_attr.to(device))
-        else:
-            pm25_pred = model(pm25_hist, feature)
         loss = criterion(pm25_pred, pm25_label)
         val_loss += loss.item()
-
     val_loss /= batch_idx + 1
     return val_loss
 
@@ -316,7 +255,7 @@ def test(test_loader, node, num_ob, sem, model, edge_index=None, edge_attr=None)
     time_list2 = []
     test_loss2 = 0
 
-    sem = torch.stack([sem]*32, dim=0) # 32 be batch_size, maybe rectify.
+    sem = torch.stack([sem]*32, dim=0) # 32 is batch_size, maybe rectify.
 
     for batch_idx, data in enumerate(test_loader):
         pm25, feature, time_arr = data
@@ -341,6 +280,7 @@ def test(test_loader, node, num_ob, sem, model, edge_index=None, edge_attr=None)
         predict_list.append(pm25_pred_val)
         label_list.append(pm25_label_val)
         time_list.append(time_arr.cpu().detach().numpy())
+        
         # Ob
         loss1 = criterion(pm25_pred[..., :num_ob, :], pm25_label[..., :num_ob, :])
         test_loss1 += loss1.item()
@@ -350,7 +290,8 @@ def test(test_loader, node, num_ob, sem, model, edge_index=None, edge_attr=None)
         predict_list1.append(pm25_pred_val1)
         label_list1.append(pm25_label_val1)
         time_list1.append(time_arr.cpu().detach().numpy())
-        # Un
+        
+        # Unob
         loss2 = criterion(pm25_pred[..., num_ob:, :], pm25_label[..., num_ob:, :])
         test_loss2 += loss2.item()
 
@@ -359,6 +300,7 @@ def test(test_loader, node, num_ob, sem, model, edge_index=None, edge_attr=None)
         predict_list2.append(pm25_pred_val2)
         label_list2.append(pm25_label_val2)
         time_list2.append(time_arr.cpu().detach().numpy())
+        
     # All
     test_loss /= batch_idx + 1
 
@@ -366,6 +308,7 @@ def test(test_loader, node, num_ob, sem, model, edge_index=None, edge_attr=None)
     label_epoch = np.concatenate(label_list, axis=0)
     time_epoch = np.concatenate(time_list, axis=0)
     predict_epoch[predict_epoch < 0] = 0
+
     # Ob
     test_loss1 /= batch_idx + 1
 
@@ -373,7 +316,8 @@ def test(test_loader, node, num_ob, sem, model, edge_index=None, edge_attr=None)
     label_epoch1 = np.concatenate(label_list1, axis=0)
     time_epoch1 = np.concatenate(time_list1, axis=0)
     predict_epoch1[predict_epoch1 < 0] = 0
-    # Un
+    
+    # Unob
     test_loss2 /= batch_idx + 1
 
     predict_epoch2 = np.concatenate(predict_list2, axis=0)
@@ -385,11 +329,9 @@ def test(test_loader, node, num_ob, sem, model, edge_index=None, edge_attr=None)
            test_loss1, predict_epoch1, label_epoch1, time_epoch1, \
            test_loss2, predict_epoch2, label_epoch2, time_epoch2
 
-
 def get_mean_std(data_list):
     data = np.asarray(data_list)
     return data.mean(), data.std()
-
 
 def main():
     exp_info = get_exp_info()
