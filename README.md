@@ -23,6 +23,7 @@ python data/generate_data_for_training.py --dataset sd_gba --years 2019_2020_202
 ```
 <br>
 Moreover, you can also generate the other years of data, as well as the two additional remaining subdatasets. 
+<br>
 ### Generating the additional PM2.5 Knowair dataset
 We implement extra experiments on [Knowair](https://github.com/shuowang-ai/PM2.5-GNN) both datasets with spatio-temporal shifts and datasets only with temporal shift, and results demonstrate that STONE achieves competitive performance in terms of both generalization and scalability. 
 
