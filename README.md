@@ -21,15 +21,12 @@ First of all, you should go through a jupyter notebook `process_ca_his.ipynb` in
 ```
 python data/generate_data_for_training.py --dataset sd_gba --years 2019_2020_2021
 ```
-<br>
 Moreover, you can also generate the other years of data, as well as the two additional remaining subdatasets. 
-<br>
 ### Generating the additional PM2.5 Knowair dataset
 We implement extra experiments on [Knowair](https://github.com/shuowang-ai/PM2.5-GNN) both datasets with spatio-temporal shifts and datasets only with temporal shift, and results demonstrate that STONE achieves competitive performance in terms of both generalization and scalability. 
 
-
 ## 2. Environmental Requirments
-The experiment requires the same environment as [LargeST](https://github.com/liuxu77/LargeST/blob/main), and is 
+The experiment requires the same environment as [LargeST](https://github.com/liuxu77/LargeST/blob/main), and need to add the libraries mentioned in the Requirements in [Knowair](https://github.com/shuowang-ai/PM2.5-GNN).
 
 ## 3. Model Running
 To run STONE, for example, you may execute this command in the terminal:
