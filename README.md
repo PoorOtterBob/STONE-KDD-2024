@@ -14,15 +14,21 @@ We show the pseudocode for the main algorithms, including <b>the Fréchet embedd
 <img src='img/STONE.png' width='300px' alt='Framework of STONE'>
 
 ## 1. Introduction about the datasets
-In our experiments, we used SD and GBA datasets which were generated from CA dataset, followed by [LargeST](https://github.com/liuxu77/LargeST/blob/main). For example, you can download CA dataset from the provided [link](https://www.kaggle.com/datasets/liuxu77/largest) and please place the downloaded archive.zip file in the `data/ca` folder and unzip the file. 
 ### Generating the SD and GBA sub-datasets from CA dataset
+In the experiments of our paper, we used SD and GBA datasets with years from 2019 to 2021, which were generated from CA dataset, followed by [LargeST](https://github.com/liuxu77/LargeST/blob/main). For example, you can download CA dataset from the provided [link](https://www.kaggle.com/datasets/liuxu77/largest) and please place the downloaded archive.zip file in the `data/ca` folder and unzip the file. 
+<br>
 First of all, you should go through a jupyter notebook `process_ca_his.ipynb` in the folder `data/ca` to process and generate a cleaned version of the flow data. Then, please go through all the cells in the provided jupyter notebooks `generate_sd_dataset.ipynb` in the folder `data/sd` and `generate_gla_dataset.ipynb` in the folder `data/gla` respectively. Finally use the commands below to generate traffic flow data for our experiments. 
 ```
 python data/generate_data_for_training.py --dataset sd_gba --years 2019_2020_2021
 ```
+<br>
+Moreover, you can also generate the other years of data, as well as the two additional remaining subdatasets. 
+### Generating the additional PM2.5 Knowair dataset
+We implement extra experiments on [Knowair](https://github.com/shuowang-ai/PM2.5-GNN) both datasets with spatio-temporal shifts and datasets only with temporal shift, and results demonstrate that STONE achieves competitive performance in terms of both generalization and scalability. 
+
 
 ## 2. Environmental Requirments
-The experiment requires the same environment as [LargeST](https://github.com/liuxu77/LargeST/blob/main).
+The experiment requires the same environment as [LargeST](https://github.com/liuxu77/LargeST/blob/main), and is 
 
 ## 3. Model Running
 To run STONE, for example, you may execute this command in the terminal:
