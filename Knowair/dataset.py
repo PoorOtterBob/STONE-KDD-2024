@@ -80,8 +80,6 @@ class HazeData(data.Dataset):
         self.wind_std = self.feature_std[-2:]
         self.pm25_mean = self.pm25.mean()
         self.pm25_std = self.pm25.std()
-        # print(self.pm25_mean)
-        # print(self.pm25_std)
         print(self.wind_mean.shape)
         print(self.wind_std.shape)
 
