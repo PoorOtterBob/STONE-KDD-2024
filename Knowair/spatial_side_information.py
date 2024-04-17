@@ -9,8 +9,6 @@ from concurrent.futures import ProcessPoolExecutor
 
 mp.set_start_method('spawn', True)
 
-# set_node_index: set_node_index[0] is observed vertices, set_node_index[-1] is unobserved vertives.
-
 class Spatial_Side_Information():
     def __init__(self, set_node_index, epsilon, c, seed, device):
         super(Spatial_Side_Information, self).__init__()
@@ -22,7 +20,6 @@ class Spatial_Side_Information():
         self._seed = seed
         self._device = device
 
-    # n = len(self._anchor_node) is the num. of observed vertices, c is num. of repeation of sampling (hy.para.).
     def get_random_anchorset(self):
         np.random.seed(self._seed)
         c = self._c
@@ -34,13 +31,9 @@ class Spatial_Side_Information():
         for i in range(distortion):
             anchor_size = int(math.ceil(n / np.exp2(i + 1)))
             for j in range(sampling_rep_rounds):
-                # anchorset_id[i*sampling_rep_rounds+j].append(self._anchor_node[np.random.choice(n, size=anchor_size, replace=False)])
                 anchorset_id[i*sampling_rep_rounds+j] = np.sort(self._anchor_node[np.random.choice(n, size=anchor_size, replace=False)])
         return anchorset_id, anchorset_num
 
-    # node_range  
-    # adj: sp.coo_matrix = self._adj
-    # epsilon = self._epsilon 视为字符串相同的忍耐值
     def nodes_dist_range(self, adj, node_range):
         dists_dict = defaultdict(dict)
         if False:
@@ -50,33 +43,26 @@ class Spatial_Side_Information():
                     if neighbor not in dists_dict[node]:
                         dists_dict[node][neighbor] = 0
                     diff = (abs(self._adj[node, self._node] - self._adj[neighbor, self._node]) >= self._epsilon)
-                    # diff = ((self._adj[node, self._node] >= self._epsilon) & (self._adj[neighbor, self._node] >= self._epsilon))
                     if isinstance(adj, sp.coo_matrix):
                         dists_dict[node][neighbor] = sp.coo_matrix.sum(diff)
                     elif isinstance(adj, np.ndarray):
                         dists_dict[node][neighbor] = np.sum(diff)
-                    # 这里的邻接矩阵不含self-loop
                     if self._adj[node, neighbor] > 0:
                         dists_dict[node][neighbor] +=1
         else:
-            # Manhattan distance
             for node in node_range:
                 for neighbor in self._node:
                     if neighbor not in dists_dict[node]:
                         dists_dict[node][neighbor] = 0
                     diff = abs(adj[node, self._node] - adj[neighbor, self._node])
-                    # diff = ((self._adj[node, self._node] >= self._epsilon) & (self._adj[neighbor, self._node] >= self._epsilon))
                     if isinstance(adj, sp.coo_matrix):
                         dists_dict[node][neighbor] = sp.coo_matrix.sum(diff)
                     elif isinstance(adj, np.ndarray):
                         dists_dict[node][neighbor] = np.sum(diff)
-                    # 这里的邻接矩阵不含self-loop
                     if adj[node, neighbor] > 0:
                         dists_dict[node][neighbor] += 1
-            # Wasserstein distance
         return dists_dict
 
-    # 填补字典
     def merge_dicts(self, dicts):
         result = {}
         for dictionary in dicts:
