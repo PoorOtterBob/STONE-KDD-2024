@@ -23,39 +23,23 @@ class Spatial_Embedding():
         self.istest = istest
         self.test_ratio = test_ratio
 
-    # new_node_ratio always be 1:10, and the input of it is 0.1
-    # ex: 500 nodes for training set and 50 other nodes for addtion nodes in the val. and testing set. 
-    # num_val is the number of different validation sets.
-    # [1 + (num_val + 1) * new_node_ratio] * traning_set_node = num_nodes
-    # 输出为三种集合的点
-    # e.g. —— SD: num_nodes = 716, new_node_ratior = 0.1, num_val = 2
     def dataset_node_segment(self):
         np.random.seed(self.seed)
-        # 生成节点索引
         node_indices = np.arange(self.num_nodes)
-        # 随机打乱节点索引
         np.random.shuffle(node_indices)
-        # 固定节点个数
         num_fixed_node = min(int(self.num_nodes / (1 + (self.num_val + 2) * self.new_node_ratio)), \
                              self.num_nodes - self.num_val - 2)
-        # 新增节点数量
         num_additional_nodes_per = max(int(num_fixed_node * self.new_node_ratio), 1)
-        # 固定节点索引
         fixed_indices = np.sort(node_indices[:num_fixed_node])
-        # 划分训练集
         train_indices = [fixed_indices, np.sort(node_indices[num_fixed_node:num_fixed_node + num_additional_nodes_per])]
-        # 划分验证集
         val_indices = {}
         for i in range(self.num_val):
             start_index = num_fixed_node + ((i+1) * num_additional_nodes_per)
             end_index = start_index + num_additional_nodes_per
         val_indices[i] = [fixed_indices, \
                           np.sort(node_indices[start_index:end_index])]
-        # 划分测试集
         test_indices = [fixed_indices, \
                         np.sort(node_indices[num_fixed_node + ((self.num_val+1) * num_additional_nodes_per) : num_fixed_node + ((self.num_val+2) * num_additional_nodes_per)])]
-        
-        # dataset_node_segment_index = [fixed_indices, train_indices, val_indices, test_indices]
         
         indices = {
         'fixed': fixed_indices,
@@ -72,10 +56,6 @@ class Spatial_Embedding():
     def SSI_func(self, ob, dist):
         return SSI(ob, self.epsilon, self.c, self.seed, self.device).spatial_emb_matrix(adj=self.adj, dist=dist)
 
-    ###以下为将num_node进行未知节点的划分###
-    ###并进行SEM的计算###
-    # Spatial Side Information
-    # sem: Spatial Embedding Matrix (n, d), d为向量长度
     def load_node_index_and_segemnt(self):
         dataset_node_segment_index, num_ob, num_un = self.dataset_node_segment()
         node = {}
@@ -125,8 +105,7 @@ class Spatial_Embedding():
                     adj[cat+'_observed'] = self.adj[node[cat + '_observed_node'], :][:, node[cat + '_observed_node']]
                     print('SEM for ' + cat + ' set has been calculated: ' + str(sem[cat].shape))
         else: 
-            # extra = dataset_node_segment_index['val_indices'][0]
-            extra = dataset_node_segment_index['train_indices']
+            extra = dataset_node_segment_index['val_indices'][0]
             if self.test_ratio == 0.05:
                 node['test'] = dataset_node_segment_index['test_indices']
                 node['test'][-1] = node['test'][-1][:len(node['test'][-1])//2]
