@@ -229,19 +229,19 @@ class KrigingEngine():
                 preds2.append(pred2.squeeze(-1).cpu())
                 labels1.append(label1.squeeze(-1).cpu())
                 labels2.append(label2.squeeze(-1).cpu())
-                x_adjs.append(x_adj.cpu())
-                sem_adjs.append(sem_adj.cpu())
+                # x_adjs.append(x_adj.cpu())
+                # sem_adjs.append(sem_adj.cpu())
 
         preds1 = torch.cat(preds1, dim=0)
         preds2 = torch.cat(preds2, dim=0)
         labels1 = torch.cat(labels1, dim=0)
         labels2 = torch.cat(labels2, dim=0)
 
-        x_adjs = torch.cat(x_adjs, dim=0).numpy()
-        sem_adjs = torch.cat(sem_adjs, dim=0).numpy()
-        np.save('x_adj.npy', x_adjs)
-        np.save('sem_adj.npy', sem_adjs)
-        print('save done')
+        # x_adjs = torch.cat(x_adjs, dim=0).numpy()
+        # sem_adjs = torch.cat(sem_adjs, dim=0).numpy()
+        # np.save('x_adj.npy', x_adjs)
+        # np.save('sem_adj.npy', sem_adjs)
+        # print('save done')
 
         # handle the precision issue when performing inverse transform to label
         mask_value1 = torch.tensor(0)
