@@ -46,7 +46,7 @@ def masked_mae_train(preds, labels, null_val):
     loss = torch.abs(preds - labels)
     loss = loss * mask
     loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
-    var = torch.mean(torch.var(loss, dim=0))
+    # var = torch.mean(torch.var(loss, dim=0))
     return torch.mean(loss), torch.var(loss)
 
 

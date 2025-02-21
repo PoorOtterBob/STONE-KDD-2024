@@ -6,15 +6,13 @@ import numpy as np
 import scipy.sparse as sp
 torch.autograd.set_detect_anomaly(True)
 from src.base.engine import BaseEngine
-from src.utils.metrics import masked_mape
-from src.utils.metrics import masked_rmse
-from src.utils.metrics import compute_all_metrics
+from src.utils.metrics import masked_mae, masked_rmse, masked_mape, compute_all_metrics
 from src.utils.graph_algo import normalize_adj_mx as nam
 
 
 class KrigingEngine():
     def __init__(self, device, model, adj, node, sem, order, horizon, dataloader, scaler, sampler, loss_fn, lrate, optimizer, \
-                 scheduler, clip_grad_value, max_epochs, patience, log_dir, logger, seed, alpha, beta, beta0, year):
+                 scheduler, optimizer_ge, scheduler_ge, clip_grad_value, max_epochs, patience, log_dir, logger, seed, alpha, beta, beta0, year):
         super().__init__()
         self._device = device
         self.model = model
@@ -32,6 +30,8 @@ class KrigingEngine():
         self._lrate = lrate
         self._optimizer = optimizer
         self._lr_scheduler = scheduler
+        self._optimizer_ge = optimizer_ge,
+        self._lrscheduler_ge = scheduler_ge,
         self._clip_grad_value = clip_grad_value
 
         self._max_epochs = max_epochs
@@ -106,7 +106,8 @@ class KrigingEngine():
         self._dataloader['train_loader'].shuffle()
         for X, label in self._dataloader['train_loader'].get_iterator():
             self._optimizer.zero_grad()
-            
+            self._optimizer_ge.zero_grad()
+
             # S_delta: noise for sem
             spatial_noise = True
             sem = self._sem['train']
@@ -122,7 +123,7 @@ class KrigingEngine():
             label2 = label[..., self._node['train_unobserved_node'], :]
             
             X, label1, label2 = self._to_device(self._to_tensor([X, label1, label2]))
-            pred1, pred2 = self.model(X, sem)
+            pred1, pred2, log_p = self.model(X, sem)
             pred1, pred2, label1, label2 = self._inverse_transform([pred1, pred2, label1, label2], 'train')
             mask_value1 = torch.tensor(0)
             mask_value2 = torch.tensor(0)
@@ -138,15 +139,23 @@ class KrigingEngine():
             mape2 = masked_mape(pred2, label2, mask_value2).item()
             rmse2 = masked_rmse(pred2, label2, mask_value2).item()
 
-            loss_ob1 = self._loss_fn(pred1, label1, mask_value1)
-            loss_un = self._loss_fn(pred2, label2, mask_value2)            
+            loss_ob1, var_ob = self._loss_fn(pred1, label1.unsqueeze(0), mask_value1)
+            loss_un, var_un = self._loss_fn(pred2, label2.unsqueeze(0), mask_value2)            
             
             loss = (loss_ob1*label1.shape[-2] + loss_un*label2.shape[-2])/(label1.shape[-2]+label2.shape[-2])
-
+            var = var_ob + var_un
+            loss = loss + var
             loss.backward()
+
+            log_p = - log_p * var.detach()
+            log_p.backward()
+
             if self._clip_grad_value != 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self._clip_grad_value)
             self._optimizer.step()
+            self.optimizer_ge.step()
+
+
             train_loss1.append(loss_ob1.item())
             train_mape1.append(mape1)
             train_rmse1.append(rmse1)
@@ -222,7 +231,7 @@ class KrigingEngine():
                 label2 = label[:, :, self._node[mode + '_unobserved_node'], :]
 
                 X, label1, label2 = self._to_device(self._to_tensor([X, label1, label2]))
-                pred1, pred2 = self.model(X, sem)
+                pred1, pred2, _ = self.model(X, sem)
                 pred1, pred2, label1, label2 = self._inverse_transform([pred1, pred2, label1, label2], mode)
 
                 preds1.append(pred1.squeeze(-1).cpu())
@@ -251,10 +260,10 @@ class KrigingEngine():
         if labels2.min() < 1:
             mask_value2 = labels2.min()
         if mode == 'val':
-            mae1 = self._loss_fn(preds1, labels1, mask_value1).item()
+            mae1 = masked_mae(preds1, labels1, mask_value1).item()
             mape1 = masked_mape(preds1, labels1, mask_value1).item()
             rmse1 = masked_rmse(preds1, labels1, mask_value1).item()
-            mae2 = self._loss_fn(preds2, labels2, mask_value2).item()
+            mae2 = masked_mae(preds2, labels2, mask_value2).item()
             mape2 = masked_mape(preds2, labels2, mask_value2).item()
             rmse2 = masked_rmse(preds2, labels2, mask_value2).item()
             loss = (mae1*labels1.shape[-1] + mae2*labels2.shape[-1])/(labels1.shape[-1]+labels2.shape[-1])

@@ -8,14 +8,30 @@ import torch.nn.functional as F
 import torch.nn.init as init
 import numpy as np
 from src.base.model import BaseModel
+from src.utils.graph_edite import Graph_Editer_Delete_Row as GE
 EPS = np.finfo(np.float32).eps
 torch.autograd.set_detect_anomaly(True)
-    
+
 class STONE(BaseModel):
     def __init__(self, SBlocks, TBlocks, node_num_un, node_num_ob, sem_dim, has_shallow_encode, 
                  Kt, Ks_s, Ks_t, dropout, adp_s_dim, adp_t_dim, 
-                 x_output_dim, sem_output_dim, gate_output_dim, horizon, **args):
+                 x_output_dim, sem_output_dim, gate_output_dim, horizon, K, num_sample, device, **args):
         super(STONE, self).__init__(**args)
+        self.ge = nn.ModuleList([GE(K, node_num_ob+node_num_un, num_sample, device), 
+                                 GE(K, node_num_ob+node_num_un, num_sample, device)])
+        self.module = STONE_Module(SBlocks, TBlocks, node_num_un, node_num_ob, sem_dim, has_shallow_encode, 
+                                   Kt, Ks_s, Ks_t, dropout, adp_s_dim, adp_t_dim, 
+                                   x_output_dim, sem_output_dim, gate_output_dim, horizon)
+
+    def forward(self, x, sem, adj=None, tadj=None, label=None):
+        x1, x2, log_p = self.module(x, sem, self.ge)
+        return x1, x2, log_p 
+
+class STONE_Module(BaseModel):
+    def __init__(self, SBlocks, TBlocks, node_num_un, node_num_ob, sem_dim, has_shallow_encode, 
+                 Kt, Ks_s, Ks_t, dropout, adp_s_dim, adp_t_dim, 
+                 x_output_dim, sem_output_dim, gate_output_dim, horizon, **args):
+        super(STONE_Module, self).__init__(**args)
         self.sstblocks = STBlock(SBlocks, TBlocks, node_num_ob, node_num_un, 
                                 dropout, Kt, sem_dim, has_shallow_encode)
         self.staggblocks = STAggBlock(TBlocks[-1][-1], x_output_dim, 
@@ -31,17 +47,18 @@ class STONE(BaseModel):
         self.x2 = nn.Linear(gate_output_dim, 1)
         self.node_num_ob = node_num_ob
         
-    def forward(self, x, sem, adj=None, tadj=None, label=None):  
+    def forward(self, x, sem, ge):  
         x, sem = self.sstblocks(x.permute(0, 3, 1, 2), sem)
         x = self.x1(x.transpose(2, 3))
         x = self.relu(x)
         x = self.x2(x).transpose(2, 3)
-        x, sem, x_adj, sem_adj = self.staggblocks(x.permute(0, 3, 1, 2).squeeze(-1), sem)
+        # x, sem, x_adj, sem_adj = self.staggblocks(x.permute(0, 3, 1, 2).squeeze(-1), sem)
+        x, sem, log_p = self.staggblocks(x.permute(0, 3, 1, 2).squeeze(-1), sem, ge)
         x = self.gatefusion(x, sem)
         x1 = x[..., :self.node_num_ob, :]
         x2 = x[..., self.node_num_ob:, :] 
 
-        return x1, x2
+        return x1, x2, log_p
         # return x1, x2, x_adj, sem_adj
 
 class STBlock(nn.Module):
@@ -95,8 +112,8 @@ class STAggBlock(nn.Module):
                  node_num_ob, node_num_un, dropout, Ks_s, Ks_t, adp_s_dim, adp_t_dim):
         super(STAggBlock, self).__init__()
         # adp_adj
-        self.t_diff2 = TGraphDiffLayer(sem_input_dim, sem_output_dim, Ks_t)
-        self.s_conv2 = SGraphConvLayer(x_input_dim, x_output_dim, Ks_s)
+        self.t_diff2 = GraphConvLayer(sem_input_dim, sem_output_dim, Ks_t)
+        self.s_conv2 = GraphConvLayer(x_input_dim, x_output_dim, Ks_s)
         self.t_adpadj = AdaptiveInteraction(x_input_dim, adp_s_dim, node_num_ob+node_num_un)
         self.s_adpadj = AdaptiveInteraction(sem_input_dim, adp_t_dim, node_num_ob+node_num_un)
 
@@ -106,9 +123,19 @@ class STAggBlock(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.node_num_ob = node_num_ob
 
-    def forward(self, x, sem, adj=None, t_adj=None):
-        sem_adpadj = self.t_adpadj(x)
-        x_adpadj = self.s_adpadj(sem)
+    def forward(self, x, sem, ge):
+        
+        if self.training:
+            m_sem, log_p1 = ge[0]()
+            m_x, log_p2 = ge[1]()
+            log_p = log_p1 + log_p2
+        else:
+            m_sem = None
+            m_x = None
+            log_p = 0.
+
+        sem_adpadj = self.t_adpadj(x, m_x)
+        x_adpadj = self.s_adpadj(sem, m_sem)
 
         x = self.s_conv2(x, x_adpadj)
         sem = self.t_diff2(sem, sem_adpadj)
@@ -116,13 +143,14 @@ class STAggBlock(nn.Module):
         x = self.relu(x)
         sem = self.relu(sem)
 
-        x = self.bn_x(x.transpose(1, 2)).transpose(1, 2)
-        sem = self.bn_sem(sem.transpose(1, 2)).transpose(1, 2)
+        x = self.bn_x(x.transpose(1, -1)).transpose(1, -1)
+        sem = self.bn_sem(sem.transpose(1, -1)).transpose(1, -1)
 
         x = self.dropout(x)
         sem = self.dropout(sem)
         
-        return x, sem, x_adpadj, sem_adpadj
+        return x, sem, log_p
+        # return x, sem, x_adpadj, sem_adpadj
 
 
 class Attention_MLP(nn.Module):
@@ -160,7 +188,7 @@ class Attention_MLP(nn.Module):
         att = torch.einsum('bid, bjd -> bij', Q, K)/math.sqrt(self.output_dim)
         att = torch.softmax(att, dim=-1)
         sem = torch.einsum('bjd, bij -> bid', V, att)
-        sem = self.bn(sem.transpose(1, 2)).transpose(1, 2)
+        sem = self.bn(sem.transpose(1, -1)).transpose(1, -1)
         sem = self.relu(sem)
         sem = gate*residual + (1-gate)*sem
         return sem
@@ -226,123 +254,59 @@ class AdaptiveInteraction(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
         self.output_dim = output_dim
     
-    def forward(self, input):
-        if True:
-            E_out1 = self.E_out1(input)
-            E_in1 = self.E_in1(input)
+    def forward(self, input, m):
+        E_out1 = self.E_out1(input)
+        E_in1 = self.E_in1(input)
 
-            E_out2 = self.E_out1(input)
-            E_in2 = self.E_in1(input)
+        E_out2 = self.E_out1(input)
+        E_in2 = self.E_in1(input)
 
-            E_out3 = self.E_out3(input)
-            E_in3 = self.E_in3(input)
-            
-            E_out = torch.einsum('bid,bjd->bij', E_out1, E_out2)/math.sqrt(self.output_dim)
-            E_in = torch.einsum('bid,bjd->bij', E_in1, E_in2)/math.sqrt(self.output_dim)
-            
-            E_out3 = torch.einsum('bij,bjd->bid', E_out, E_out2)
-            E_in3 = torch.einsum('bij,bjd->bid', E_in, E_in2)
+        E_out3 = self.E_out3(input)
+        E_in3 = self.E_in3(input)
+        
+        E_out = torch.einsum('bid,bjd->bij', E_out1, E_out2)/math.sqrt(self.output_dim)
+        E_in = torch.einsum('bid,bjd->bij', E_in1, E_in2)/math.sqrt(self.output_dim)
+        
+        E_out3 = torch.einsum('bij,bjd->bid', E_out, E_out2)
+        E_in3 = torch.einsum('bij,bjd->bid', E_in, E_in2)
 
-            E_out3 = self.bn1(E_out3.transpose(1,2)).transpose(1,2)
-            E_out3 = self.bn2(E_in3.transpose(1,2)).transpose(1,2)
+        E_out3 = self.bn1(E_out3.transpose(1, -1)).transpose(1, -1)
+        E_out3 = self.bn2(E_in3.transpose(1, -1)).transpose(1, -1)
 
-            if len(input.shape) == 2:
-                adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)
-            else:
-                adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)
-            adp_adj = self.relu(adp_adj)
-            adp_adj = self.softmax(adp_adj)
+        if len(input.shape) == 2:
+            adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)
         else:
-            E_out1 = self.E_out1(input)
-            E_in1 = self.E_in1(input)
+            adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)
 
-            E_out2 = self.E_out2(input)
-            E_in2 = self.E_in2(input)
+        adp_adj = self.relu(adp_adj)
+        adp_adj = self.softmax(adp_adj)
 
-            E_out3 = self.E_out3(input)
-            E_in3 = self.E_in3(input)
-            
-            E_out = torch.einsum('bid,bjd->bij', E_out1, E_out2)/math.sqrt(self.output_dim)
-            E_in = torch.einsum('bid,bjd->bij', E_in1, E_in2)/math.sqrt(self.output_dim)
-
-            E_out = self.softmax(E_out)
-            E_in = self.softmax(E_in)
-
-            E_out3 = torch.einsum('bij,bjd->bid', E_out, E_out3)
-            E_in3 = torch.einsum('bij,bjd->bid', E_in, E_in3)
-
-            if len(input.shape) == 2:
-                adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)/math.sqrt(self.output_dim)
-            else:
-                adp_adj = torch.einsum('bik, bjk -> bij', E_out3, E_in3)/math.sqrt(self.output_dim)
-            adp_adj = torch.softmax(adp_adj, dim=-1)
+        if self.training:
+            adp_adj = torch.einsum('kj, bij -> kbij', m, adp_adj)
+        else:
+            adp_adj = adp_adj.unsqueeze(0)
         return adp_adj
 
-class TGraphDiffLayer(nn.Module):
+
+class GraphConvLayer(nn.Module):
     def __init__(self, c_in, c_out, Ks):
-        super(TGraphDiffLayer, self).__init__()
+        super(GraphConvLayer, self).__init__()
         self.c_in = c_in
         self.c_out = c_out
         self.align = nn.Linear(c_in, c_out)
         self.Ks = Ks
-        self.cheb_tgraph_conv = TGraphDiff(c_in, c_out, Ks)
-
-    def forward(self, x, gso):
-        x_gc_in = self.align(x)
-        x_gc = self.cheb_tgraph_conv(x_gc_in, gso)
-        x_gc_out = torch.add(x_gc, x_gc_in)
-        return x_gc_out
-
-
-class TGraphDiff(nn.Module):
-    def __init__(self, c_in, c_out, Ks):
-        super(TGraphDiff, self).__init__()
-        self.c_in = c_in
-        self.c_out = c_out
-        self.Ks = Ks
-        self.weight = nn.Parameter(torch.FloatTensor(Ks+1, c_in, c_out))
-        self.bias = nn.Parameter(torch.FloatTensor(c_out))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-        fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-        bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-        init.uniform_(self.bias, -bound, bound)
-
-    def forward(self, x, gso):
-        x_list = [x]
-        if self.Ks - 1 < 0:
-            raise ValueError(f'ERROR: the graph convolution kernel size Ks has to be a positive integer, but received {self.Ks}.')  
-        else:
-            adj = gso
-            for i in range(self.Ks):
-                x_list.append(torch.einsum('bij,bjd->bid', adj, x_list[i]))
-        x = torch.stack(x_list, dim=0)
-        cheb_graph_conv = torch.einsum('kbit,kts->bis', x, self.weight)
-        cheb_graph_conv = torch.add(cheb_graph_conv, self.bias)
-        return cheb_graph_conv
-
-class SGraphConvLayer(nn.Module):
-    def __init__(self, c_in, c_out, Ks):
-        super(SGraphConvLayer, self).__init__()
-        self.c_in = c_in
-        self.c_out = c_out
-        self.align = nn.Linear(c_in, c_out)
-        self.Ks = Ks
-        self.tgraph_diff = SGraphConv(c_out, c_out, Ks)
+        self.tgraph_diff = GraphConv(c_out, c_out, Ks)
 
     
     def forward(self, x, adj):
         x_tgc_in = self.align(x)
         x_tgc = self.tgraph_diff(x_tgc_in, adj)
-        x_tgc_out = x_tgc_in
-        x_tgc_out = torch.add(x_tgc, x_tgc_out)
+        x_tgc_out = torch.add(x_tgc, x_tgc_in.unsqueeze(0))
         return x_tgc_out
 
-class SGraphConv(nn.Module):
+class GraphConv(nn.Module):
     def __init__(self, c_in, c_out, Ks):
-        super(SGraphConv, self).__init__()
+        super(GraphConv, self).__init__()
         self.c_in = c_in
         self.c_out = c_out
         self.Ks = Ks
@@ -362,12 +326,16 @@ class SGraphConv(nn.Module):
         if self.Ks - 1 < 0:
             raise ValueError(f'ERROR: the graph convolution kernel size Ks has to be a positive integer, but received {self.Ks}.')  
         else:
+            if self.training:
+                x_list = [x.unsqueeze(0).expand(gso.shape[0], -1, -1, -1)] # (b, n, d) -> (o, M, b, n, d)
+            else:
+                x_list = [x.unsqueeze(0)] # (b, n, d) -> (o, M, b, n, d)
             adj = gso
             for i in range(self.Ks):
-                x_list.append(torch.einsum('bij,bjd->bid', adj, x_list[i]))
+                x_list.append(torch.einsum('mbij, mbjd-> mbid', adj, x_list[i]))
 
         x = torch.stack(x_list, dim=0)
-        cheb_graph_conv = torch.einsum('kbit,kts->bis', x, self.weight)
+        cheb_graph_conv = torch.einsum('kmbit,kts -> mbis', x, self.weight)
         cheb_graph_conv = torch.add(cheb_graph_conv, self.bias)
         return cheb_graph_conv
 
@@ -412,4 +380,4 @@ class GatedFusionBlock(nn.Module):
         output = self.relu(output)
         output = self.out2(output)
         
-        return output.transpose(1, 2).unsqueeze(-1)
+        return output.transpose(-1, -2).unsqueeze(-1)

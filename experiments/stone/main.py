@@ -11,7 +11,7 @@ torch.set_num_threads(3)
 from src.base.stone import STONE
 from src.utils.args import get_public_config
 from src.utils.graph_algo import normalize_adj_mx
-from src.utils.metrics import masked_mae
+from src.utils.metrics import masked_mae_train
 from src.utils.logging import get_logger
 
 
@@ -160,12 +160,18 @@ def main():
                    x_output_dim=x_output_dim, 
                    sem_output_dim=sem_output_dim, 
                    gate_output_dim=gate_output_dim, 
-                   horizon=args.horizon
+                   horizon=args.horizon,
+                   K=args.KK, 
+                   num_sample=args.num_sample, 
+                   device=device,
                    )
 
     loss_fn = masked_mae
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lrate, weight_decay=args.wdecay)
+    optimizer = torch.optim.Adam(model.module.parameters(), lr=args.lrate, weight_decay=args.wdecay)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
+
+    optimizer_ge = torch.optim.Adam(model.ge.parameters(), lr=args.lrate, weight_decay=args.wdecay)
+    scheduler_ge = torch.optim.lr_scheduler.StepLR(optimizer_ge, step_size=args.step_size, gamma=args.gamma)
 
     engine = KrigingEngine(device=device,
                         model=model,
@@ -181,6 +187,8 @@ def main():
                         lrate=args.lrate,
                         optimizer=optimizer,
                         scheduler=scheduler,
+                        optimizer_ge=optimizer_ge,
+                        scheduler_ge=scheduler_ge,
                         clip_grad_value=args.clip_grad_value,
                         max_epochs=args.max_epochs,
                         patience=args.patience,
