@@ -21,7 +21,7 @@ class STONE(BaseModel):
                                  GE(K, node_num_ob+node_num_un, num_sample, device)])
         self.module = STONE_Module(SBlocks, TBlocks, node_num_un, node_num_ob, sem_dim, has_shallow_encode, 
                                    Kt, Ks_s, Ks_t, dropout, adp_s_dim, adp_t_dim, 
-                                   x_output_dim, sem_output_dim, gate_output_dim, horizon)
+                                   x_output_dim, sem_output_dim, gate_output_dim, horizon, **args)
 
     def forward(self, x, sem, adj=None, tadj=None, label=None):
         x1, x2, log_p = self.module(x, sem, self.ge)

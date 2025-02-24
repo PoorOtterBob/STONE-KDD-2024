@@ -153,7 +153,7 @@ class KrigingEngine():
             if self._clip_grad_value != 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self._clip_grad_value)
             self._optimizer.step()
-            self.optimizer_ge.step()
+            self._optimizer_ge.step()
 
 
             train_loss1.append(loss_ob1.item())

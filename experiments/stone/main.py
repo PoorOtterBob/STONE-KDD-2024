@@ -166,7 +166,7 @@ def main():
                    device=device,
                    )
 
-    loss_fn = masked_mae
+    loss_fn = masked_mae_train
     optimizer = torch.optim.Adam(model.module.parameters(), lr=args.lrate, weight_decay=args.wdecay)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
 
