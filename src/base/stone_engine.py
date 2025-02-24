@@ -5,18 +5,23 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 torch.autograd.set_detect_anomaly(True)
-from src.base.engine import BaseEngine
 from src.utils.metrics import masked_mae, masked_rmse, masked_mape, compute_all_metrics
-from src.utils.graph_algo import normalize_adj_mx as nam
-
+from tqdm import tqdm
 
 class KrigingEngine():
     def __init__(self, device, model, adj, node, sem, order, horizon, dataloader, scaler, sampler, loss_fn, lrate, optimizer, \
-                 scheduler, optimizer_ge, scheduler_ge, clip_grad_value, max_epochs, patience, log_dir, logger, seed, alpha, beta, beta0, year):
+                 scheduler, mask_s, optimizer_ge_s, scheduler_ge_s, mask_t, optimizer_ge_t, scheduler_ge_t, 
+                 clip_grad_value, max_epochs, patience, log_dir, logger, seed, alpha, beta, beta0, year):
         super().__init__()
         self._device = device
         self.model = model
         self.model.to(self._device)
+        
+        self._mask_s = mask_s
+        self._mask_s.to(self._device)
+
+        self._mask_t = mask_t
+        self._mask_t.to(self._device)
 
         self._adj = adj
         self._node = node
@@ -30,8 +35,15 @@ class KrigingEngine():
         self._lrate = lrate
         self._optimizer = optimizer
         self._lr_scheduler = scheduler
-        self._optimizer_ge = optimizer_ge,
-        self._lrscheduler_ge = scheduler_ge,
+
+        self._mask_s = mask_s
+        self._optimizer_ge_s = optimizer_ge_s,
+        self._lrscheduler_ge_s = scheduler_ge_s,
+
+        self._mask_t = mask_t
+        self._optimizer_ge_t = optimizer_ge_t,
+        self._lrscheduler_ge_t = scheduler_ge_t,
+
         self._clip_grad_value = clip_grad_value
 
         self._max_epochs = max_epochs
@@ -104,9 +116,10 @@ class KrigingEngine():
         # before or after shuffle
         # self._dataloader['train_loader'].shuffle_batch()
         self._dataloader['train_loader'].shuffle()
-        for X, label in self._dataloader['train_loader'].get_iterator():
+        for X, label in tqdm(self._dataloader['train_loader'].get_iterator()):
             self._optimizer.zero_grad()
-            self._optimizer_ge.zero_grad()
+            self._optimizer_ge_s[0].zero_grad()
+            self._optimizer_ge_t[0].zero_grad()
 
             # S_delta: noise for sem
             spatial_noise = True
@@ -123,7 +136,7 @@ class KrigingEngine():
             label2 = label[..., self._node['train_unobserved_node'], :]
             
             X, label1, label2 = self._to_device(self._to_tensor([X, label1, label2]))
-            pred1, pred2, log_p = self.model(X, sem)
+            pred1, pred2, log_p = self.model(X, sem, [self._mask_s, self._mask_t])
             pred1, pred2, label1, label2 = self._inverse_transform([pred1, pred2, label1, label2], 'train')
             mask_value1 = torch.tensor(0)
             mask_value2 = torch.tensor(0)
@@ -147,13 +160,17 @@ class KrigingEngine():
             loss = loss + var
             loss.backward()
 
-            log_p = - log_p * var.detach()
-            log_p.backward()
+            log_p_s = - log_p[0] * var.detach()
+            log_p_s.backward()
+
+            log_p_t = - log_p[1] * var.detach()
+            log_p_t.backward()
 
             if self._clip_grad_value != 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self._clip_grad_value)
             self._optimizer.step()
-            self._optimizer_ge.step()
+            self._optimizer_ge_s[0].step()
+            self._optimizer_ge_t[0].step()
 
 
             train_loss1.append(loss_ob1.item())
@@ -220,10 +237,8 @@ class KrigingEngine():
         preds2 = []
         labels1 = []
         labels2 = []
-        x_adjs = []
-        sem_adjs = [] 
         with torch.no_grad():
-            for X, label in self._dataloader[mode + '_loader'].get_iterator():
+            for X, label in tqdm(self._dataloader[mode + '_loader'].get_iterator()):
                 X = X[:, :, self._node[mode + '_node'], :]
                 sem = self._sem[mode]
                 sem = torch.stack([sem]*X.shape[0], dim=0)
@@ -234,23 +249,15 @@ class KrigingEngine():
                 pred1, pred2, _ = self.model(X, sem)
                 pred1, pred2, label1, label2 = self._inverse_transform([pred1, pred2, label1, label2], mode)
 
-                preds1.append(pred1.squeeze(-1).cpu())
-                preds2.append(pred2.squeeze(-1).cpu())
+                preds1.append(pred1.squeeze(0).squeeze(-1).cpu())
+                preds2.append(pred2.squeeze(0).squeeze(-1).cpu())
                 labels1.append(label1.squeeze(-1).cpu())
                 labels2.append(label2.squeeze(-1).cpu())
-                # x_adjs.append(x_adj.cpu())
-                # sem_adjs.append(sem_adj.cpu())
 
         preds1 = torch.cat(preds1, dim=0)
         preds2 = torch.cat(preds2, dim=0)
         labels1 = torch.cat(labels1, dim=0)
         labels2 = torch.cat(labels2, dim=0)
-
-        # x_adjs = torch.cat(x_adjs, dim=0).numpy()
-        # sem_adjs = torch.cat(sem_adjs, dim=0).numpy()
-        # np.save('x_adj.npy', x_adjs)
-        # np.save('sem_adj.npy', sem_adjs)
-        # print('save done')
 
         # handle the precision issue when performing inverse transform to label
         mask_value1 = torch.tensor(0)

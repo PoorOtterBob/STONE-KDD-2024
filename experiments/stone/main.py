@@ -13,7 +13,7 @@ from src.utils.args import get_public_config
 from src.utils.graph_algo import normalize_adj_mx
 from src.utils.metrics import masked_mae_train
 from src.utils.logging import get_logger
-
+from src.utils.graph_edite import Graph_Editer_Delete_Row as GE
 
 
 def set_seed(seed):
@@ -161,17 +161,27 @@ def main():
                    sem_output_dim=sem_output_dim, 
                    gate_output_dim=gate_output_dim, 
                    horizon=args.horizon,
-                   K=args.KK, 
-                   num_sample=args.num_sample, 
-                   device=device,
                    )
 
     loss_fn = masked_mae_train
-    optimizer = torch.optim.Adam(model.module.parameters(), lr=args.lrate, weight_decay=args.wdecay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lrate, weight_decay=args.wdecay)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
 
-    optimizer_ge = torch.optim.Adam(model.ge.parameters(), lr=args.lrate, weight_decay=args.wdecay)
-    scheduler_ge = torch.optim.lr_scheduler.StepLR(optimizer_ge, step_size=args.step_size, gamma=args.gamma)
+
+    ge_s = GE(args.KK, 
+              node_num_ob+node_num_un, 
+              args.num_sample,
+              device)
+    optimizer_ge_s = torch.optim.Adam(ge_s.parameters(), lr=args.lrate, weight_decay=args.wdecay)
+    scheduler_ge_s = torch.optim.lr_scheduler.StepLR(optimizer_ge_s, step_size=args.step_size, gamma=args.gamma)
+
+    ge_t = GE(args.KK, 
+              node_num_ob+node_num_un, 
+              args.num_sample,
+              device)
+    optimizer_ge_t = torch.optim.Adam(ge_t.parameters(), lr=args.lrate, weight_decay=args.wdecay)
+    scheduler_ge_t = torch.optim.lr_scheduler.StepLR(optimizer_ge_t, step_size=args.step_size, gamma=args.gamma)
+
 
     engine = KrigingEngine(device=device,
                         model=model,
@@ -187,8 +197,12 @@ def main():
                         lrate=args.lrate,
                         optimizer=optimizer,
                         scheduler=scheduler,
-                        optimizer_ge=optimizer_ge,
-                        scheduler_ge=scheduler_ge,
+                        mask_s=ge_s,
+                        optimizer_ge_s=optimizer_ge_s,
+                        scheduler_ge_s=scheduler_ge_s,
+                        mask_t=ge_t,
+                        optimizer_ge_t=optimizer_ge_t,
+                        scheduler_ge_t=scheduler_ge_t,
                         clip_grad_value=args.clip_grad_value,
                         max_epochs=args.max_epochs,
                         patience=args.patience,

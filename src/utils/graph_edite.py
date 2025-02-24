@@ -7,11 +7,12 @@ class Graph_Editer_Delete_Row(nn.Module):
     def __init__(self, K, node_num, num_sample, device):
         super(Graph_Editer_Delete_Row, self).__init__()
         
-        self.B = nn.Parameter(torch.FloatTensor(node_num).unsqueeze(0).expand(K, -1))
+        self.B = nn.Parameter(torch.FloatTensor(K, node_num))
         self.M = torch.ones(K, node_num, dtype=torch.float, requires_grad=False).to(device)
         self.node_num = node_num
         self.num_sample = num_sample
-
+        self.reset_parameters()
+        
     def reset_parameters(self):
         nn.init.uniform_(self.B)
 

@@ -12,7 +12,7 @@ from src.utils.graph_edite import Graph_Editer_Delete_Row as GE
 EPS = np.finfo(np.float32).eps
 torch.autograd.set_detect_anomaly(True)
 
-class STONE(BaseModel):
+'''class STONE(BaseModel):
     def __init__(self, SBlocks, TBlocks, node_num_un, node_num_ob, sem_dim, has_shallow_encode, 
                  Kt, Ks_s, Ks_t, dropout, adp_s_dim, adp_t_dim, 
                  x_output_dim, sem_output_dim, gate_output_dim, horizon, K, num_sample, device, **args):
@@ -25,13 +25,13 @@ class STONE(BaseModel):
 
     def forward(self, x, sem, adj=None, tadj=None, label=None):
         x1, x2, log_p = self.module(x, sem, self.ge)
-        return x1, x2, log_p 
+        return x1, x2, log_p '''
 
-class STONE_Module(BaseModel):
+class STONE(BaseModel):
     def __init__(self, SBlocks, TBlocks, node_num_un, node_num_ob, sem_dim, has_shallow_encode, 
                  Kt, Ks_s, Ks_t, dropout, adp_s_dim, adp_t_dim, 
                  x_output_dim, sem_output_dim, gate_output_dim, horizon, **args):
-        super(STONE_Module, self).__init__(**args)
+        super(STONE, self).__init__(**args)
         self.sstblocks = STBlock(SBlocks, TBlocks, node_num_ob, node_num_un, 
                                 dropout, Kt, sem_dim, has_shallow_encode)
         self.staggblocks = STAggBlock(TBlocks[-1][-1], x_output_dim, 
@@ -47,7 +47,7 @@ class STONE_Module(BaseModel):
         self.x2 = nn.Linear(gate_output_dim, 1)
         self.node_num_ob = node_num_ob
         
-    def forward(self, x, sem, ge):  
+    def forward(self, x, sem, ge=None):  
         x, sem = self.sstblocks(x.permute(0, 3, 1, 2), sem)
         x = self.x1(x.transpose(2, 3))
         x = self.relu(x)
@@ -117,8 +117,8 @@ class STAggBlock(nn.Module):
         self.t_adpadj = AdaptiveInteraction(x_input_dim, adp_s_dim, node_num_ob+node_num_un)
         self.s_adpadj = AdaptiveInteraction(sem_input_dim, adp_t_dim, node_num_ob+node_num_un)
 
-        self.bn_sem = nn.BatchNorm1d(sem_output_dim)
-        self.bn_x = nn.BatchNorm1d(x_output_dim)
+        self.bn_sem = nn.BatchNorm2d(sem_output_dim)
+        self.bn_x = nn.BatchNorm2d(x_output_dim)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=dropout)
         self.node_num_ob = node_num_ob
@@ -128,11 +128,11 @@ class STAggBlock(nn.Module):
         if self.training:
             m_sem, log_p1 = ge[0]()
             m_x, log_p2 = ge[1]()
-            log_p = log_p1 + log_p2
+            log_p = [log_p1, log_p2]
         else:
             m_sem = None
             m_x = None
-            log_p = 0.
+            log_p = [0., 0.]
 
         sem_adpadj = self.t_adpadj(x, m_x)
         x_adpadj = self.s_adpadj(sem, m_sem)
