@@ -46,3 +46,14 @@ To run STONE on <b>Knowair</b>, you may directly execute the Pyhon file in the t
 ```
 python Knowair/train.py
 ```
+
+
+```bibtex
+@inproceedings{wang2024stone,
+  title={Stone: A spatio-temporal ood learning framework kills both spatial and temporal shifts},
+  author={Wang, Binwu and Ma, Jiaming and Wang, Pengkun and Wang, Xu and Zhang, Yudong and Zhou, Zhengyang and Wang, Yang},
+  booktitle={Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+  pages={2948--2959},
+  year={2024}
+}
+```
