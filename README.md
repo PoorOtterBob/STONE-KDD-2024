@@ -1,4 +1,21 @@
-# STONE: A Spatio-temporal OOD Learning Framework Kills Both Structural and Temporal Shifts (KDD 2024)
+<div align="center">
+
+# STONE: A Spatio-temporal OOD Learning Framework Kills Both Structural and Temporal Shifts
+
+[![Venue KDD%202024](https://img.shields.io/badge/Venue-KDD%202024-e36209)](https://kdd2024.kdd.org/)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/) [![PyTorch](https://img.shields.io/badge/PyTorch-%E2%89%A51.10-ee4c2c.svg)](https://pytorch.org/)
+
+<p align="center">
+  <a href="#1-introduction-about-the-datasets">Datasets</a> |
+  <a href="#3-model-running">Running</a> |
+  <a href="#-citation">Citation</a> |
+  <a href="#-license">License</a>
+</p>
+
+</div>
+
 This is the official repository of our KDD 2024 paper. This paper represents the first comprehensive investigation into the traffic prediction considering both
 temporal and spatial shifts. We propose a novel spatio-temporal OOD-network framework with Fréchet Embedding called STONE. STONE effectively models spatial heterogeneity and generates temporal and spatial semantic graphs. Additionally, we introduce a graph perturbation mechanism to enhance the model’s environmental modeling capability for better generalization. We implement extensive experiments on both datasets with spatio-temporal shifts and datasets only with temporal shift, and results demonstrate that STONE achieves competitive performance in terms of both generalization and scalability. 
 <br>
@@ -47,13 +64,25 @@ To run STONE on <b>Knowair</b>, you may directly execute the Pyhon file in the t
 python Knowair/train.py
 ```
 
+## 📄 Citation
+
+If you find this repository useful, please cite our paper:
 
 ```bibtex
 @inproceedings{wang2024stone,
-  title={Stone: A spatio-temporal ood learning framework kills both spatial and temporal shifts},
-  author={Wang, Binwu and Ma, Jiaming and Wang, Pengkun and Wang, Xu and Zhang, Yudong and Zhou, Zhengyang and Wang, Yang},
-  booktitle={Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
-  pages={2948--2959},
-  year={2024}
+  title     = {{STONE}: A Spatio-temporal {OOD} Learning Framework Kills Both Spatial and Temporal Shifts},
+  author    = {Wang, Binwu and Ma, Jiaming and Wang, Pengkun and Wang, Xu and Zhang, Yudong and
+               Zhou, Zhengyang and Wang, Yang},
+  booktitle = {Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
+  pages     = {2948--2959},
+  year      = {2024}
 }
 ```
+
+## 🙏 Acknowledgements
+
+Built on [LargeST](https://github.com/liuxu77/LargeST) and [PM2.5-GNN (KnowAir)](https://github.com/shuowang-ai/PM2.5-GNN). Each dataset keeps the license of its original release.
+
+## 📜 License
+
+The code in this repository is released under the [MIT License](LICENSE).
